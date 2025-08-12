@@ -503,7 +503,10 @@ body.summary-fullscreen .summary-col {
 
 /* Fullscreen: cards render as a single vertical list inside each column */
 body.summary-fullscreen .summary-col-cards {
-  display: block !important;
+  /* In fullscreen, stack cards vertically with a clear gap between them */
+  display: flex !important;
+  flex-direction: column;
+  gap: var(--summary-card-gap, 8px);
   margin: 0;
   padding: 0;
 }
