@@ -172,9 +172,8 @@
   letter-spacing: 0.01em;
 
   /* Sticky header: stays at top of its column during vertical scroll */
-  position: -webkit-sticky; /* better cross-browser support */
   position: sticky;
-  top: calc(var(--navbar-height, 0px) + var(--toolbar-height, 0px)); /* keep visible below navbar + toolbar */
+  top: 0; /* stick to top of viewport/scroll container */
   z-index: 3; /* above cards content within the column */
   background: var(--color-bg-panel); /* ensure content doesn't show through */
 }
