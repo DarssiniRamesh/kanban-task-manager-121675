@@ -448,7 +448,8 @@ body.product-fullscreen .kanban-app-container {
 
 /* In product fullscreen, hide toolbar and filter panel entirely */
 body.product-fullscreen .kanban-toolbar,
-body.product-fullscreen .kanban-filter-panel {
+body.product-fullscreen .kanban-filter-panel,
+body.product-fullscreen .product-summary {
   display: none !important;
 }
 

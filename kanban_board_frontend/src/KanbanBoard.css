@@ -50,6 +50,19 @@
   }
 }
 
+.product-summary {
+  background: var(--color-bg-surface);
+  border-top: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-color);
+  padding: 8px 0;
+  box-shadow: 0 1px 6px rgba(0,0,0,0.04) inset;
+}
+
+/* Keep consistent spacing between toolbar, summary, and filters on Product page */
+.product-summary + .kanban-filter-panel {
+  margin-top: 6px;
+}
+
 .kanban-board {
   display: flex;
   flex-direction: row;

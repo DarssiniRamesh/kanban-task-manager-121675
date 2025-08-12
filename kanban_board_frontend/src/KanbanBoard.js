@@ -1,5 +1,6 @@
 import React, { useState, createContext, useContext } from 'react';
 import Toolbar from './components/Toolbar';
+import StatusSummary from './components/StatusSummary';
 import Column from './components/Column';
 import FilterPanel from './components/FilterPanel';
 import { DndProvider } from 'react-dnd';
@@ -217,6 +218,7 @@ function KanbanBoardInner() {
           isFullscreen={fullScreen}
         />
       )}
+      {!fullScreen && <StatusSummary />}
       {!fullScreen && <FilterPanel onFiltersChange={setFilters} />}
 
       {/* Exit Full Screen floating button - only visible in fullscreen mode */}
