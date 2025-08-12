@@ -1,9 +1,11 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import KanbanCard from './KanbanCard';
 import { useKanban } from '../KanbanContext';
 import { useDrop, useDrag } from 'react-dnd';
 import { CARD_TYPE } from './dndTypes';
 import { useFeedback } from '../KanbanBoard';
+import AssigneeAutocomplete from './AssigneeAutocomplete';
+import { addKnownAssignee } from '../utils/assignees';
 
 /**
  * CardList supports dropping cards for intra-column reordering (vertical movement)
@@ -22,7 +24,7 @@ function CardList({ column, cards: colCardsProp, isCompact = false }) {
   const [{ isOver, canDrop }, drop] = useDrop({
     accept: CARD_TYPE,
     canDrop: (item) => !!item,
-    drop: async (item, monitor) => {
+    drop: async (item) => {
       // If dropping into a column with no cards
       if (colCards.length === 0) {
         // Place card at pos 1, update column_id
@@ -67,17 +69,23 @@ function CardList({ column, cards: colCardsProp, isCompact = false }) {
       </button>
 
       {adding && (
-        <form className="kanban-add-card-form" onSubmit={handleAddCard}>
+        <form className="kanban-add-card-form" onSubmit={async (e) => {
+          // Capture assignee BEFORE form reset inside handleAddCard
+          const assigneeValue = (e.target?.assignee?.value || '').trim();
+          await handleAddCard(e);
+          try {
+            if (assigneeValue) addKnownAssignee(assigneeValue);
+          } catch { /* ignore storage issues */ }
+        }}>
           <input name="feature" placeholder="Feature/Title" required autoComplete="off"/>
           <div className="kanban-form-grid">
-            {/* Refactored: Free text input for assignee field */}
-            <input
+            {/* Assignee with autocomplete suggestions */}
+            <AssigneeAutocomplete
               name="assignee"
               placeholder="Assignee"
-              autoComplete="off"
-              spellCheck={false}
               className="styled-input"
               style={{ minWidth: 0 }}
+              inputProps={{ 'aria-label': 'Assignee' }}
             />
             <select name="priority" defaultValue="" className="styled-select">
               <option value="">Priority</option>
@@ -143,17 +151,16 @@ function DnDKanbanCard({ card, index, column, colCards, isCompact = false }) {
   const [{ isOver, canDrop }, drop] = useDrop({
     accept: CARD_TYPE,
     canDrop: (item) => item.id !== card.id,
-    drop: async (item, monitor) => {
+    drop: async (item) => {
       if (item.id === card.id) return;
       if (item.column_id === column.id) {
         // Move within column (reorder)
         // To reorder: swap positions
         const movingCard = colCards.find(c => c.id === item.id);
         if (!movingCard) return;
-        const targetPos = card.position;
 
         // Only adjust if not same position (no op)
-        if (movingCard.position !== targetPos) {
+        if (movingCard.position !== card.position) {
           // Compute new ordering: remove moving card, insert at drop index
           let newOrder = [...colCards];
           newOrder = newOrder.filter(c => c.id !== movingCard.id);

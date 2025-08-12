@@ -3,6 +3,8 @@ import ReactDOM from 'react-dom';
 import { useKanban } from '../KanbanContext';
 import { useFeedback } from '../KanbanBoard';
 import DeleteOutline from '@mui/icons-material/DeleteOutline';
+import AssigneeAutocomplete from './AssigneeAutocomplete';
+import { addKnownAssignee } from '../utils/assignees';
 
 // Field badge/pill helpers
 function Pill({ value, type }) {
@@ -40,7 +42,7 @@ function Modal({ children, onClose }) {
   );
 }
 
-const ASSIGNEES = ["Alice", "Bob", "Charlie", "Unassigned"]; // demo, could be prop/context
+
 
 // PUBLIC_INTERFACE
 /**
@@ -113,6 +115,9 @@ function KanbanCard({ card, isCompact = false }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     await updateCard(card.id, fields);
+    try {
+      if (fields.assignee) addKnownAssignee(fields.assignee);
+    } catch { /* ignore storage issues */ }
     setEdit(false);
   };
 
@@ -260,16 +265,16 @@ function KanbanCard({ card, isCompact = false }) {
                     required
                     placeholder="Feature/Title"
                   />
-                  {/* Refactored: Assignee as free-text input */}
-                  <input
+                  {/* Assignee with autocomplete suggestions */}
+                  <AssigneeAutocomplete
                     name="assignee"
                     value={fields.assignee || ""}
                     onChange={handleChange}
                     placeholder="Assignee"
-                    autoComplete="off"
-                    spellCheck={false}
                     className="styled-input"
                     style={{ minWidth: 0 }}
+                    inputProps={{ 'aria-label': 'Assignee' }}
+                    idSuffix={`edit-${card.id}`}
                   />
                   <select name="priority" value={fields.priority||""} onChange={handleChange}>
                     <option value="">Priority</option>
