@@ -46,15 +46,10 @@ export default function Summary() {
     }
   }, [fullScreen]);
 
-  // Keyboard shortcut: 'f' toggles fullscreen
+  // Keyboard shortcut removed per requirement: 'f' key should have no effect
   React.useEffect(() => {
-    const onKey = (e) => {
-      if (e.key.toLowerCase() === 'f') {
-        setFullScreen((v) => !v);
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    // no-op reserved for future keyboard handlers
+    return () => {};
   }, []);
 
   // Persist collapsed columns in localStorage
@@ -205,8 +200,6 @@ export default function Summary() {
         }}
         tabIndex={0}
         onKeyDown={(e) => {
-          if (e.key === 'ArrowLeft' && index > 0) moveColumn(index, index - 1);
-          if (e.key === 'ArrowRight' && index < totalColumns - 1) moveColumn(index, index + 1);
           if (e.key === 'm') toggleCollapsed(column.id);
         }}
       >
@@ -293,7 +286,7 @@ export default function Summary() {
           <div>
             <h1 className="page-title" style={{ marginTop: 8, marginBottom: 6 }}>Board Summary</h1>
             <p className="page-subtitle" style={{ marginBottom: 12 }}>
-              Presentation view (clean, draggable columns). Tips: Left/Right to reorder, "m" to minimize, "f" to toggle fullscreen.
+              Presentation view (clean, draggable columns). Tip: Press "m" to minimize columns.
             </p>
           </div>
           <div>

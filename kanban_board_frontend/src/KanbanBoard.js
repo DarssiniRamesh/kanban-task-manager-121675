@@ -103,15 +103,10 @@ function KanbanBoardInner() {
     }
   }, [fullScreen]);
 
-  // Optional keyboard shortcut: 'f' toggles fullscreen on Product page
+  // Keyboard shortcut removed per requirement: 'f' key should have no effect
   React.useEffect(() => {
-    const onKey = (e) => {
-      if (e.key && e.key.toLowerCase() === 'f') {
-        setFullScreen(v => !v);
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    // no-op reserved for future keyboard handlers
+    return () => {};
   }, []);
 
   // Filter state local to board
@@ -202,18 +197,12 @@ function KanbanBoardInner() {
       }
     };
 
-    // Keyboard reordering for accessibility
-    const handleKeyDown = e => {
-      if (e.key === 'ArrowLeft' && index > 0) {
-        moveColumn(index, index - 1);
-      } else if (e.key === 'ArrowRight' && index < totalColumns - 1) {
-        moveColumn(index, index + 1);
-      }
-    };
+    // Keyboard reordering removed per requirement: Arrow keys disabled
+    const handleKeyDown = () => {};
 
     // Pass filteredCards to Column if present
     return (
-      <div {...draggableProps} onKeyDown={handleKeyDown}>
+      <div {...draggableProps}>
         <Column column={column} index={index} isDragging={isDragging} isOver={isOver && canDrop} filteredCards={filteredCards} isCompact={isCompact} />
       </div>
     );
