@@ -100,7 +100,7 @@ export default function Dashboard() {
       <h1 className="page-title">Dashboard</h1>
       <p className="page-subtitle">Live summary of your product board</p>
 
-      {/* KPI cards (keep existing) */}
+      {/* KPI cards (updated): Total, Assignees, and status counts */}
       <section className="dashboard-grid" aria-label="Key metrics">
         <div className="stat-card">
           <div className="stat-label">Total Features</div>
@@ -111,8 +111,20 @@ export default function Dashboard() {
           <div className="stat-value">{uniqueAssignees}</div>
         </div>
         <div className="stat-card">
-          <div className="stat-label">Columns</div>
-          <div className="stat-value">{columns.length}</div>
+          <div className="stat-label">To Do</div>
+          <div className="stat-value">{statusCounts['To do'] || 0}</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">Done</div>
+          <div className="stat-value">{statusCounts['Done'] || 0}</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">In Progress</div>
+          <div className="stat-value">{statusCounts['In Progress'] || 0}</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">On Hold</div>
+          <div className="stat-value">{statusCounts['On Hold'] || 0}</div>
         </div>
       </section>
 
