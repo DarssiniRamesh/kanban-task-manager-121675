@@ -1,0 +1,26 @@
+erDiagram
+
+  kanban_columns {
+    uuid id PK "Primary Key"
+    text title "Column Title"
+    int position "Column ordering"
+    timestamp created_at "Creation Time"
+    timestamp updated_at "Update Time"
+  }
+
+  kanban_cards {
+    uuid id PK "Primary Key"
+    uuid column_id FK "Foreign Key to columns"
+    text feature "Feature/Task Name"
+    text description
+    text assignee
+    text notes
+    text priority
+    text status
+    date due_date
+    int position "Card ordering within column"
+    timestamp created_at
+    timestamp updated_at
+  }
+
+  kanban_columns ||--o{ kanban_cards : contains

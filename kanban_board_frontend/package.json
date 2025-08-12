@@ -3,9 +3,19 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
+    "@supabase/supabase-js": "^2.49.10",
+    "@mui/material": "^5.15.14",
+    "@mui/icons-material": "^5.15.14",
+    "@mui/lab": "^5.0.0-alpha.146",
+    "@emotion/react": "^11.11.4",
+    "@emotion/styled": "^11.11.5",
     "react": "^18.2.0",
+    "react-dnd": "^16.0.1",
+    "react-dnd-html5-backend": "^16.0.1",
     "react-dom": "^18.2.0",
-    "react-scripts": "^5.0.1"
+    "react-router-dom": "^6.23.1",
+    "react-scripts": "^5.0.1",
+    "xlsx": "^0.18.5"
   },
   "scripts": {
     "start": "react-scripts start",
