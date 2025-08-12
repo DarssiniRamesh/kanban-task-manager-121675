@@ -446,16 +446,17 @@ body.product-fullscreen .kanban-app-container {
   min-height: 100vh;
 }
 
-/* Ensure sticky bars stick to top of viewport in fullscreen */
-body.product-fullscreen .kanban-toolbar {
-  top: 0 !important;
-  border-radius: 0 !important;
+/* In product fullscreen, hide toolbar and filter panel entirely */
+body.product-fullscreen .kanban-toolbar,
+body.product-fullscreen .kanban-filter-panel {
+  display: none !important;
 }
 
-/* Filter panel should also stick to the very top in fullscreen */
-body.product-fullscreen .kanban-filter-panel {
-  top: 0 !important;
-  border-radius: 0 !important;
+/* Also hide non-essential controls to show only columns and their cards */
+body.product-fullscreen .kanban-column-editbtn,
+body.product-fullscreen .kanban-column-delbtn,
+body.product-fullscreen .kanban-card-list > .btn {
+  display: none !important;
 }
 
 /* Containers expand to full width in fullscreen for better usage of space */

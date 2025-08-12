@@ -8,6 +8,7 @@ import ToastModal from './components/ToastModal';
 import { COLUMN_TYPE } from './components/dndTypes';
 import { useKanban } from './KanbanContext';
 import { useDrop, useDrag } from 'react-dnd';
+import FullscreenExitIcon from '@mui/icons-material/FullscreenExit';
 
 import './KanbanBoard.css';
 
@@ -210,18 +211,34 @@ function KanbanBoardInner() {
 
   return (
     <div className="kanban-app-container">
-      <Toolbar
-        onToggleFullscreen={() => setFullScreen(v => !v)}
-        isFullscreen={fullScreen}
-      />
-      <FilterPanel onFiltersChange={setFilters} />
+      {!fullScreen && (
+        <Toolbar
+          onToggleFullscreen={() => setFullScreen(v => !v)}
+          isFullscreen={fullScreen}
+        />
+      )}
+      {!fullScreen && <FilterPanel onFiltersChange={setFilters} />}
+
+      {/* Exit Full Screen floating button - only visible in fullscreen mode */}
+      {fullScreen && (
+        <button
+          className="fullscreen-exit-btn"
+          onClick={() => setFullScreen(false)}
+          title="Exit Full Screen"
+          aria-label="Exit Full Screen"
+        >
+          <FullscreenExitIcon fontSize="small" />
+          <span className="fullscreen-exit-label">Exit</span>
+        </button>
+      )}
+
       <div className="kanban-board" role="list" aria-label="Kanban Columns">
         {isLoading ? (
           <div className="kanban-loading">Loading...</div>
         ) : error ? (
           <div className="kanban-error">{error}</div>
         ) : (
-          columns.map((col, idx) =>
+          columns.map((col, idx) => (
             <DraggableKanbanColumn
               key={col.id}
               column={col}
@@ -233,7 +250,7 @@ function KanbanBoardInner() {
               filteredCards={filteredCards.filter(c => c.column_id === col.id)}
               isCompact={isCompact}
             />
-          )
+          ))
         )}
       </div>
     </div>

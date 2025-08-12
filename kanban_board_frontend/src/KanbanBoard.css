@@ -89,6 +89,34 @@
   cursor: grab;
   transition: box-shadow 0.16s, outline 0.14s, opacity .17s;
 }
+
+/* Exit Full Screen floating button (only rendered in fullscreen state) */
+.fullscreen-exit-btn {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  z-index: 120; /* above board content but below modals */
+  background: var(--color-accent);
+  color: #fff;
+  border: none;
+  border-radius: 999px;
+  padding: 8px 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 800;
+  box-shadow: 0 2px 12px rgba(232,122,65,0.35);
+  cursor: pointer;
+}
+.fullscreen-exit-btn:hover,
+.fullscreen-exit-btn:focus {
+  background: var(--color-accent-strong);
+  outline: none;
+  box-shadow: 0 3px 16px rgba(232,122,65,0.45);
+}
+.fullscreen-exit-label {
+  font-size: 0.95rem;
+}
 .kanban-board > div[role="listitem"]:focus-visible .kanban-column {
   outline: 3px solid #38B2AC !important;
   box-shadow: 0 2px 14px #38B2AC66;
@@ -142,6 +170,12 @@
   border-bottom: 1.5px solid var(--border-color);
   margin-bottom: 6px;
   letter-spacing: 0.01em;
+
+  /* Sticky header: stays at top of its column during vertical scroll */
+  position: sticky;
+  top: 0; /* stick to top of viewport/scroll container */
+  z-index: 3; /* above cards content within the column */
+  background: var(--color-bg-panel); /* ensure content doesn't show through */
 }
 
 .kanban-column-title {
