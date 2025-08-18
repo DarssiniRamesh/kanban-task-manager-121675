@@ -6,16 +6,108 @@ import { useFeedback, useExpandMode } from '../KanbanBoard';
 import FullscreenIcon from '@mui/icons-material/Fullscreen';
 import FullscreenExitIcon from '@mui/icons-material/FullscreenExit';
 
+/**
+ * Build export rows from cards with a stable header order and value formatting.
+ * Ensures:
+ *  - due_date formatted as 'YYYY-MM-DD' or blank
+ *  - estimated_effort is a number cell when present, otherwise blank
+ *  - all string fields trimmed and default to '' when missing
+ */
+function buildExportRows(cards, columns) {
+  if (!Array.isArray(cards)) return [];
+  // Sort by column position then by card position for a stable output
+  const colPos = new Map((columns || []).map(c => [c.id, c.position || 0]));
+  const sorted = [...cards].sort((a, b) => {
+    const ac = colPos.get(a.column_id) ?? 0;
+    const bc = colPos.get(b.column_id) ?? 0;
+    if (ac !== bc) return ac - bc;
+    return (a.position || 0) - (b.position || 0);
+  });
+
+  return sorted.map(c => {
+    const due = c.due_date ? String(c.due_date).slice(0, 10) : '';
+    const est = (c.estimated_effort === 0 || !!c.estimated_effort)
+      ? Number(c.estimated_effort)
+      : '';
+    return {
+      feature: (c.feature || '').trim(),
+      description: (c.description || '').trim(),
+      assignee: (c.assignee || '').trim(),
+      notes: (c.notes || '').trim(),
+      priority: (c.priority || '').trim(),
+      status: (c.status || '').trim(),
+      due_date: due,
+      impact: (c.impact || '').trim(),
+      market_need: (c.market_need || '').trim(),
+      estimated_effort: est,
+      category: (c.category || '').trim(),
+    };
+  });
+}
+
+// Public export header order
+const EXPORT_HEADERS = [
+  'feature',
+  'description',
+  'assignee',
+  'notes',
+  'priority',
+  'status',
+  'due_date',
+  'impact',
+  'market_need',
+  'estimated_effort',
+  'category',
+];
+
+/**
+ * Download a blank Excel template with headers that match the board schema,
+ * including the new fields.
+ */
 function downloadExcelTemplate() {
-  // Columns per Supabase schema
   const template = [
-    ['feature', 'description', 'assignee', 'notes', 'priority', 'status', 'due_date'],
-    ['Sample Task', 'Description here', 'Alice', 'Notes here', 'High', 'To Do', '2024-01-31'],
+    // Header row
+    EXPORT_HEADERS,
+    // Sample row (as guidance)
+    [
+      'Sample Task',
+      'Description here',
+      'Alice',
+      'Any extra notes for the team',
+      'High',
+      'To Do',
+      '2024-01-31',
+      'High Impact - Low Effort',
+      'Demand',
+      3,
+      'Feature',
+    ],
   ];
   const ws = XLSX.utils.aoa_to_sheet(template);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'KanbanCards');
   XLSX.writeFile(wb, 'kanban_cards_template.xlsx');
+}
+
+/**
+ * Create and download an XLSX workbook for the current board cards.
+ */
+function downloadBoardExcel(rows) {
+  const ws = XLSX.utils.json_to_sheet(rows, { header: EXPORT_HEADERS });
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'KanbanCards');
+  XLSX.writeFile(wb, 'kanban_cards_export.xlsx');
+}
+
+/**
+ * Create and download a CSV for the current board cards.
+ */
+function downloadBoardCSV(rows) {
+  const ws = XLSX.utils.json_to_sheet(rows, { header: EXPORT_HEADERS });
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'KanbanCards');
+  // Write the first sheet as CSV
+  XLSX.writeFile(wb, 'kanban_cards_export.csv', { bookType: 'csv' });
 }
 
 /**
@@ -27,7 +119,7 @@ function downloadExcelTemplate() {
  *  - isFullscreen?: boolean to indicate current fullscreen state
  */
 function Toolbar({ onToggleFullscreen, isFullscreen }) {
-  const { addColumn, bulkInsertCards, columns } = useKanban();
+  const { addColumn, bulkInsertCards, columns, cards } = useKanban();
   const inputRef = useRef();
   const { showToast } = useFeedback();
   const { isCompact, setIsCompact } = useExpandMode();
@@ -104,46 +196,75 @@ function Toolbar({ onToggleFullscreen, isFullscreen }) {
       return;
     }
 
-      // Fields required in DB (as per Supabase schema)
-      const allowedFields = ['feature', 'description', 'assignee', 'notes', 'priority', 'status', 'due_date'];
-      const cards = entries
-        .map(row => {
-          const obj = {};
-          header.forEach((k, i) => {
-            if (allowedFields.includes(k)) {
-              obj[k] = row[i];
-            }
-          });
-          // Parse due_date to yyyy-mm-dd format if present and is numeric (Excel)
-          if (obj.due_date && typeof obj.due_date === 'number') {
-            obj.due_date = require('xlsx').SSF.format('yyyy-mm-dd', obj.due_date);
+    // Fields allowed for import (Supabase schema). Updated to include new fields.
+    const allowedFields = [
+      'feature',
+      'description',
+      'assignee',
+      'notes',
+      'priority',
+      'status',
+      'due_date',
+      'impact',
+      'market_need',
+      'estimated_effort',
+      'category',
+    ];
+    const cards = entries
+      .map(row => {
+        const obj = {};
+        header.forEach((k, i) => {
+          if (allowedFields.includes(k)) {
+            obj[k] = row[i];
           }
-          Object.keys(obj).forEach(k => {
-            if (typeof obj[k] === 'string') obj[k] = obj[k].trim();
-          });
-          return obj;
-        })
-        .filter(card => card && typeof card.feature === 'string' && card.feature.trim().length > 0);
+        });
+        // Parse due_date to yyyy-mm-dd format if present and is numeric (Excel date)
+        if (obj.due_date && typeof obj.due_date === 'number') {
+          obj.due_date = require('xlsx').SSF.format('yyyy-mm-dd', obj.due_date);
+        }
+        // estimated_effort to integer or null/empty if blank/non-numeric
+        if (obj.estimated_effort !== undefined) {
+          const raw = obj.estimated_effort;
+          const parsed = Number.parseInt(raw, 10);
+          obj.estimated_effort = Number.isNaN(parsed) ? null : parsed;
+        }
+        Object.keys(obj).forEach(k => {
+          if (typeof obj[k] === 'string') obj[k] = obj[k].trim();
+        });
+        return obj;
+      })
+      .filter(card => card && typeof card.feature === 'string' && card.feature.trim().length > 0);
 
-      if (cards.length === 0) {
-        showToast('No valid cards found in the file. Make sure "feature" column is filled.', "error");
-        return;
+    if (cards.length === 0) {
+      showToast('No valid cards found in the file. Make sure "feature" column is filled.', "error");
+      return;
+    }
+    try {
+      if (!cards.every(c => c.feature)) {
+        // eslint-disable-next-line no-console
+        console.log("[Excel Bulk Upload] One or more mapped cards missing 'feature'");
       }
-      try {
-        if (!cards.every(c => c.feature)) {
-          // eslint-disable-next-line no-console
-          console.log("[Excel Bulk Upload] One or more mapped cards missing 'feature'");
-        }
-        const error = await bulkInsertCards(col.id, cards);
-        if (error) {
-          showToast(`Bulk upload failed: ${error.message || error}`, "error");
-        } else {
-          showToast(`Bulk upload succeeded (${cards.length} cards added)`, "success");
-        }
-      } catch (e) {
-        showToast('Bulk upload encountered an error: ' + (e.message || e), "error");
+      const error = await bulkInsertCards(col.id, cards);
+      if (error) {
+        showToast(`Bulk upload failed: ${error.message || error}`, "error");
+      } else {
+        showToast(`Bulk upload succeeded (${cards.length} cards added)`, "success");
       }
-    };
+    } catch (e) {
+      showToast('Bulk upload encountered an error: ' + (e.message || e), "error");
+    }
+  };
+
+  // Export handlers
+  const handleExportExcel = () => {
+    const rows = buildExportRows(cards || [], columns || []);
+    downloadBoardExcel(rows);
+  };
+  const handleExportCSV = () => {
+    const rows = buildExportRows(cards || [], columns || []);
+    downloadBoardCSV(rows);
+  };
+
 /* ---------- UI rendering section below ---------- */
   return (
     <>
@@ -153,6 +274,12 @@ function Toolbar({ onToggleFullscreen, isFullscreen }) {
         </button>
         <button className="btn" onClick={downloadExcelTemplate}>
           Download Excel Template
+        </button>
+        <button className="btn" onClick={handleExportExcel} style={{ marginLeft: 8 }}>
+          Export Excel
+        </button>
+        <button className="btn" onClick={handleExportCSV} style={{ marginLeft: 6 }}>
+          Export CSV
         </button>
         <button
           className="btn"
@@ -188,8 +315,6 @@ function Toolbar({ onToggleFullscreen, isFullscreen }) {
         )}
       </div>
       {/* Add Column Modal */}
-
-
       {addColumnModal && (
         typeof document === "undefined"
           ? null
