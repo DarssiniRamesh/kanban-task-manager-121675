@@ -139,7 +139,7 @@ function downloadBoardCSV(rows) {
  *  - isFullscreen?: boolean to indicate current fullscreen state
  */
 function Toolbar({ onToggleFullscreen, isFullscreen }) {
-  const { addColumn, bulkInsertCards, columns, cards } = useKanban();
+  const { addColumn, importCards, columns, cards } = useKanban();
   const inputRef = useRef();
   const { showToast } = useFeedback();
   const { isCompact, setIsCompact } = useExpandMode();
@@ -223,6 +223,7 @@ function Toolbar({ onToggleFullscreen, isFullscreen }) {
 
     // Fields allowed for import (Supabase schema). Updated to include new fields.
     const allowedFields = [
+      'id',
       'feature',
       'description',
       'assignee',
@@ -235,7 +236,7 @@ function Toolbar({ onToggleFullscreen, isFullscreen }) {
       'estimated_effort',
       'category',
     ];
-    const cards = entries
+    const parsedRows = entries
       .map(row => {
         const obj = {};
         header.forEach((k, i) => {
@@ -260,23 +261,24 @@ function Toolbar({ onToggleFullscreen, isFullscreen }) {
       })
       .filter(card => card && typeof card.feature === 'string' && card.feature.trim().length > 0);
 
-    if (cards.length === 0) {
+    if (parsedRows.length === 0) {
       showToast('No valid cards found in the file. Make sure "feature" column is filled.', "error");
       return;
     }
     try {
-      if (!cards.every(c => c.feature)) {
+      if (!parsedRows.every(c => c.feature)) {
         // eslint-disable-next-line no-console
-        console.log("[Excel Bulk Upload] One or more mapped cards missing 'feature'");
+        console.log("[Excel Bulk Upload] One or more mapped rows missing 'feature'");
       }
-      const error = await bulkInsertCards(col.id, cards);
-      if (error) {
-        showToast(`Bulk upload failed: ${error.message || error}`, "error");
+      const result = await importCards(col.id, parsedRows);
+      if (result && result.error) {
+        showToast(`Import failed: ${result.error}`, "error");
       } else {
-        showToast(`Bulk upload succeeded (${cards.length} cards added)`, "success");
+        const { updatedCount = 0, insertedCount = 0, skippedDuplicates = 0 } = result || {};
+        showToast(`Import complete: ${updatedCount} updated, ${insertedCount} added, ${skippedDuplicates} skipped`, "success");
       }
     } catch (e) {
-      showToast('Bulk upload encountered an error: ' + (e.message || e), "error");
+      showToast('Import encountered an error: ' + (e.message || e), "error");
     }
   };
 

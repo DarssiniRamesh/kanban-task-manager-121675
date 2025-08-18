@@ -211,6 +211,153 @@ export function KanbanProvider({ children }) {
   };
 
   // PUBLIC_INTERFACE
+  /**
+   * Import mixed set of rows: updates existing cards by ID (only changed fields) and
+   * appends new cards to the specified column. Prevents duplicates both within the
+   * uploaded file and against existing cards in the target column (using a signature
+   * of feature|assignee|description).
+   *
+   * @param {number|string} column_id - Column to append new cards into.
+   * @param {Array<Object>} rows - Parsed rows from Excel/CSV with optional 'id' and card fields.
+   * @returns {{updatedCount?:number, insertedCount?:number, skippedDuplicates?:number, error?:string}}
+   */
+  // PUBLIC_INTERFACE
+  const importCards = async (column_id, rows) => {
+    try {
+      const allowedFields = [
+        'feature',
+        'description',
+        'assignee',
+        'notes',
+        'priority',
+        'status',
+        'due_date',
+        'impact',
+        'market_need',
+        'estimated_effort',
+        'category',
+      ];
+
+      // Build lookups for efficient operations
+      const existingById = new Map(cards.map(c => [String(c.id), c]));
+      const existingSig = new Set(
+        cards
+          .filter(c => c.column_id === column_id)
+          .map(c => `${(c.feature || '').trim().toLowerCase()}|${(c.assignee || '').trim().toLowerCase()}|${(c.description || '').trim().toLowerCase()}`)
+      );
+
+      const seenSig = new Set();
+      const updates = [];
+      const inserts = [];
+      let skippedDuplicates = 0;
+
+      const normalizeRow = (r) => {
+        const o = {};
+        allowedFields.forEach(k => {
+          if (r[k] !== undefined) o[k] = r[k];
+        });
+        // Normalize estimated_effort
+        if (o.estimated_effort !== undefined) {
+          const parsed = parseInt(o.estimated_effort, 10);
+          o.estimated_effort = Number.isNaN(parsed) ? null : parsed;
+        }
+        // Trim strings
+        Object.keys(o).forEach(k => {
+          if (typeof o[k] === 'string') o[k] = o[k].trim();
+        });
+        return o;
+      };
+
+      for (const r of rows || []) {
+        const row = normalizeRow(r);
+        const hasId = r.id !== undefined && r.id !== null && String(r.id).trim() !== '';
+        if (hasId) {
+          const idKey = String(r.id);
+          const existing = existingById.get(idKey);
+          if (!existing) {
+            // No existing with this ID; treat as potential new insert
+            const sig = `${(row.feature || '').trim().toLowerCase()}|${(row.assignee || '').trim().toLowerCase()}|${(row.description || '').trim().toLowerCase()}`;
+            if (!row.feature || seenSig.has(sig) || existingSig.has(sig)) {
+              skippedDuplicates++;
+              continue;
+            }
+            seenSig.add(sig);
+            const toInsert = { ...row };
+            delete toInsert.id;
+            inserts.push(toInsert);
+          } else {
+            // Compute field-by-field diff
+            const diff = {};
+            for (const k of allowedFields) {
+              if (k in row) {
+                if (k === 'estimated_effort') {
+                  const cnum = existing[k] === null || existing[k] === undefined ? null : Number(existing[k]);
+                  const nnum = row[k] === null || row[k] === '' || row[k] === undefined ? null : Number(row[k]);
+                  if (cnum !== nnum) diff[k] = nnum;
+                } else {
+                  const curr = existing[k] === undefined || existing[k] === null ? '' : String(existing[k]);
+                  const next = row[k] === undefined || row[k] === null ? '' : String(row[k]);
+                  if (curr !== next) diff[k] = row[k];
+                }
+              }
+            }
+            if (Object.keys(diff).length > 0) {
+              updates.push({ id: existing.id, updates: diff });
+            }
+          }
+        } else {
+          // New card candidate
+          const sig = `${(row.feature || '').trim().toLowerCase()}|${(row.assignee || '').trim().toLowerCase()}|${(row.description || '').trim().toLowerCase()}`;
+          if (!row.feature || seenSig.has(sig) || existingSig.has(sig)) {
+            skippedDuplicates++;
+            continue;
+          }
+          seenSig.add(sig);
+          inserts.push(row);
+        }
+      }
+
+      // Perform updates (only when there is something to change)
+      if (updates.length > 0) {
+        await Promise.all(
+          updates.map(u => supabase.from('kanban_cards').update(u.updates).eq('id', u.id))
+        );
+      }
+
+      // Perform inserts in one batch with sequential positions
+      let insertedCount = 0;
+      if (inserts.length > 0) {
+        const existingCardsForColumn = cards.filter(c => c.column_id === column_id);
+        const maxPos = existingCardsForColumn.length > 0
+          ? Math.max(...existingCardsForColumn.map(c => c.position || 0))
+          : 0;
+        const payload = inserts.map((card, idx) => ({
+          ...card,
+          column_id,
+          position: maxPos + idx + 1,
+        }));
+        const { error: insertError } = await supabase.from('kanban_cards').insert(payload);
+        if (insertError) {
+          setError(insertError.message || 'Import insert error');
+        } else {
+          insertedCount = payload.length;
+        }
+      }
+
+      await fetchAll();
+
+      return {
+        updatedCount: updates.length,
+        insertedCount,
+        skippedDuplicates,
+      };
+    } catch (e) {
+      setError(e.message || 'Import error');
+      return { error: e.message || String(e) };
+    }
+  };
+
+  // PUBLIC_INTERFACE
   return (
     <KanbanContext.Provider
       value={{
@@ -228,6 +375,7 @@ export function KanbanProvider({ children }) {
         deleteCard,
         reorderCardsInColumn,
         bulkInsertCards,
+        importCards,
       }}
     >
       {children}
