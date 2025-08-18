@@ -68,6 +68,11 @@ function KanbanCard({ card, isCompact = false }) {
     priority: card.priority,
     status: card.status,
     due_date: card.due_date,
+    // New fields
+    impact: card.impact,
+    market_need: card.market_need,
+    estimated_effort: card.estimated_effort ?? '',
+    category: card.category,
   });
 
   // Determine card color class (status primary, then priority)
@@ -100,6 +105,11 @@ function KanbanCard({ card, isCompact = false }) {
       priority: card.priority,
       status: card.status,
       due_date: card.due_date,
+      // New fields
+      impact: card.impact,
+      market_need: card.market_need,
+      estimated_effort: card.estimated_effort ?? '',
+      category: card.category,
     });
     setModalOpen(true);
     setEdit(false);
@@ -114,7 +124,12 @@ function KanbanCard({ card, isCompact = false }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    await updateCard(card.id, fields);
+    const estimated =
+      fields.estimated_effort === '' ? null
+        : Number.isNaN(parseInt(fields.estimated_effort, 10)) ? null
+        : parseInt(fields.estimated_effort, 10);
+    const payload = { ...fields, estimated_effort: estimated };
+    await updateCard(card.id, payload);
     try {
       if (fields.assignee) addKnownAssignee(fields.assignee);
     } catch { /* ignore storage issues */ }
@@ -253,6 +268,14 @@ function KanbanCard({ card, isCompact = false }) {
                   <div className="kanban-detail-label">Notes</div>
                   <div className="kanban-detail-content">{card.notes || <span className="missing-info">None</span>}</div>
                 </div>
+                <div className="kanban-detail-row" style={{ marginTop: 10 }}>
+                  <span className="kanban-detail-field-label">Impact:</span> <Pill value={card.impact} type="impact" />
+                  <span className="kanban-detail-field-label">Market Need:</span> <Pill value={card.market_need} type="market_need" />
+                </div>
+                <div className="kanban-detail-row">
+                  <span className="kanban-detail-field-label">Est. Effort:</span> <Pill value={card.estimated_effort != null ? String(card.estimated_effort) : ''} type="estimate" />
+                  <span className="kanban-detail-field-label">Category:</span> <Pill value={card.category} type="category" />
+                </div>
                 <button className="btn" style={{marginTop:18, width:"100%"}} onClick={() => setEdit(true)}>Edit Card</button>
               </>
             ) : (
@@ -292,6 +315,38 @@ function KanbanCard({ card, isCompact = false }) {
                     <option value="On Hold">On Hold</option>
                   </select>
                   <input name="due_date" type="date" value={fields.due_date||""} onChange={handleChange}/>
+
+                  {/* New fields */}
+                  <select name="impact" value={fields.impact || ""} onChange={handleChange} aria-label="Impact">
+                    <option value="">Impact</option>
+                    <option value="High Impact - Low Effort">High Impact - Low Effort</option>
+                    <option value="High Effort - Low Impact">High Effort - Low Impact</option>
+                    <option value="High Effort - High Impact">High Effort - High Impact</option>
+                    <option value="Low Effort - Low Impact">Low Effort - Low Impact</option>
+                  </select>
+                  <select name="market_need" value={fields.market_need || ""} onChange={handleChange} aria-label="Market Need">
+                    <option value="">Market Need</option>
+                    <option value="Demand">Demand</option>
+                    <option value="USP">USP</option>
+                    <option value="Usability">Usability</option>
+                    <option value="Nice to Have">Nice to Have</option>
+                  </select>
+                  <input
+                    name="estimated_effort"
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={fields.estimated_effort ?? ""}
+                    onChange={handleChange}
+                    placeholder="Est. Effort"
+                    aria-label="Estimated Effort"
+                  />
+                  <select name="category" value={fields.category || ""} onChange={handleChange} aria-label="Category">
+                    <option value="">Category</option>
+                    <option value="Feature">Feature</option>
+                    <option value="Enhancement">Enhancement</option>
+                    <option value="Feedback">Feedback</option>
+                  </select>
                 </div>
                 <textarea name="description" value={fields.description||""} onChange={handleChange} placeholder="Description"/>
                 <textarea name="notes" value={fields.notes||""} onChange={handleChange} placeholder="Notes"/>

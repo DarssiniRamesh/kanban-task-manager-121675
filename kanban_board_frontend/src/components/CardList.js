@@ -47,7 +47,29 @@ function CardList({ column, cards: colCardsProp, isCompact = false }) {
     const priority = e.target.priority.value;
     const status = e.target.status.value;
     const due_date = e.target.due_date.value;
-    await addCard(column.id, { feature, description, assignee, notes, priority, status, due_date });
+
+    // New fields
+    const impact = e.target.impact.value;
+    const market_need = e.target.market_need.value;
+    const estimated_effort_raw = e.target.estimated_effort.value;
+    const category = e.target.category.value;
+
+    const estimated_effort =
+      estimated_effort_raw === '' ? null : Number.isNaN(parseInt(estimated_effort_raw, 10)) ? null : parseInt(estimated_effort_raw, 10);
+
+    await addCard(column.id, {
+      feature,
+      description,
+      assignee,
+      notes,
+      priority,
+      status,
+      due_date,
+      impact,
+      market_need,
+      estimated_effort,
+      category,
+    });
     setAdding(false);
     e.target.reset();
   };
@@ -103,6 +125,37 @@ function CardList({ column, cards: colCardsProp, isCompact = false }) {
               <option value="On Hold">On Hold</option>
             </select>
             <input name="due_date" type="date" className="styled-input"/>
+
+            {/* New fields */}
+            <select name="impact" defaultValue="" className="styled-select" aria-label="Impact">
+              <option value="">Impact</option>
+              <option value="High Impact - Low Effort">High Impact - Low Effort</option>
+              <option value="High Effort - Low Impact">High Effort - Low Impact</option>
+              <option value="High Effort - High Impact">High Effort - High Impact</option>
+              <option value="Low Effort - Low Impact">Low Effort - Low Impact</option>
+            </select>
+            <select name="market_need" defaultValue="" className="styled-select" aria-label="Market Need">
+              <option value="">Market Need</option>
+              <option value="Demand">Demand</option>
+              <option value="USP">USP</option>
+              <option value="Usability">Usability</option>
+              <option value="Nice to Have">Nice to Have</option>
+            </select>
+            <input
+              name="estimated_effort"
+              type="number"
+              min="0"
+              step="1"
+              placeholder="Est. Effort"
+              className="styled-input"
+              aria-label="Estimated Effort"
+            />
+            <select name="category" defaultValue="" className="styled-select" aria-label="Category">
+              <option value="">Category</option>
+              <option value="Feature">Feature</option>
+              <option value="Enhancement">Enhancement</option>
+              <option value="Feedback">Feedback</option>
+            </select>
           </div>
           <textarea name="description" placeholder="Description" className="styled-input"/>
           <textarea name="notes" placeholder="Notes" className="styled-input"/>
