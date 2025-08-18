@@ -206,10 +206,19 @@ function KanbanCard({ card, isCompact = false }) {
           )}
         </div>
         <div className="kanban-card-pillrow">
-          {/* In compact mode, omit status pill and due date; keep priority + assignee */}
+          {/* In compact mode, omit status pill and due date; keep priority + assignee; show key fields for visibility */}
           {!isCompact && <Pill value={card.status} type="status" />}
           <Pill value={card.priority} type="priority" />
           <Pill value={card.assignee} type="assignee" />
+          {/* New visible fields */}
+          <Pill value={card.category} type="category" />
+          <Pill value={card.impact} type="impact" />
+          <Pill value={card.market_need} type="market_need" />
+          {card.estimated_effort != null && card.estimated_effort !== '' && (
+            <span className="kanban-pill kanban-pill-estimate" title="Estimated effort (story points)">
+              SP {card.estimated_effort}
+            </span>
+          )}
           {!isCompact && card.due_date && (
             <span className="kanban-pill kanban-pill-due" title="Due">
               <span role="img" aria-label="due">🗓️</span> {card.due_date}
