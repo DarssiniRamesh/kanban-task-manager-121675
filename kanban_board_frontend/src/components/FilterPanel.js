@@ -2,13 +2,7 @@ import React, { useMemo, useState } from "react";
 import { useKanban } from "../KanbanContext";
 import "./FilterPanel.css";
 import {
-  Select,
-  MenuItem,
-  InputLabel,
-  FormControl,
   Checkbox,
-  ListItemText,
-  OutlinedInput,
   Chip,
   Box,
   useTheme,
@@ -20,6 +14,10 @@ import FlagIcon from "@mui/icons-material/Flag";
 import ViewColumnIcon from "@mui/icons-material/ViewColumn";
 import AssignmentIcon from "@mui/icons-material/Assignment";
 import EventIcon from "@mui/icons-material/Event";
+import InsightsIcon from "@mui/icons-material/Insights";
+import LightbulbOutlinedIcon from "@mui/icons-material/LightbulbOutlined";
+import CategoryIcon from "@mui/icons-material/Category";
+import SpeedIcon from "@mui/icons-material/Speed";
 
 // Helper: get unique field values for multi-selects
 function getUniqueFieldValues(cards, field) {
@@ -28,34 +26,11 @@ function getUniqueFieldValues(cards, field) {
   ).sort((a, b) => a.localeCompare(b));
 }
 
-// Render MUI chips with minimal style
-function renderChips(values, getLabel, onDelete) {
-  return (
-    <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.7 }}>
-      {values.map((val) => (
-        <Chip
-          key={val}
-          label={getLabel(val)}
-          size="small"
-          sx={{
-            bgcolor: "var(--color-bg-chip, #263949)",
-            color: "var(--color-chip-text, #ebfdff)",
-            fontWeight: 600,
-            m: "1px",
-            ".MuiChip-deleteIcon": { color: "#ef8585" },
-          }}
-          onDelete={onDelete ? () => onDelete(val) : undefined}
-        />
-      ))}
-    </Box>
-  );
-}
-
 // PUBLIC_INTERFACE
 /**
  * Minimal, modern, MUI-powered filter panel for Kanban board.
- * Assignee, Status, Priority, Column filters use <Select multiple> w/ checkboxes, chips for tag display,
- * and searchable typeahead drop-down (MUI Autocomplete).
+ * Adds filtering for: assignees, priorities, statuses, columns, due date range,
+ * impact, market_need, category, and estimated_effort (range).
  */
 export default function FilterPanel({ onFiltersChange }) {
   const { cards, columns } = useKanban();
@@ -67,6 +42,11 @@ export default function FilterPanel({ onFiltersChange }) {
     statuses: [],
     priorities: [],
     columns: [],
+    impact: [],
+    market_need: [],
+    category: [],
+    estimatedEffortMin: "",
+    estimatedEffortMax: "",
     dueFrom: "",
     dueTo: "",
   });
@@ -76,7 +56,7 @@ export default function FilterPanel({ onFiltersChange }) {
     // eslint-disable-next-line
   }, [filters]);
 
-  // Build options
+  // Build options from cards (dynamic fields)
   const assigneeOptions = useMemo(
     () => getUniqueFieldValues(cards, "assignee"),
     [cards]
@@ -94,22 +74,15 @@ export default function FilterPanel({ onFiltersChange }) {
     [columns]
   );
 
-  // Change handlers for filters
-  function handleSelectChange(field) {
-    return (event) => {
-      setFilters((prev) => ({
-        ...prev,
-        [field]: event.target.value,
-      }));
-    };
-  }
-
-  function handleChipDelete(field, value) {
-    setFilters((prev) => ({
-      ...prev,
-      [field]: prev[field].filter((v) => v !== value),
-    }));
-  }
+  // Fixed option sets (accurate values) for new fields
+  const impactOptions = [
+    "High Impact - Low Effort",
+    "High Effort - Low Impact",
+    "High Effort - High Impact",
+    "Low Effort - Low Impact",
+  ];
+  const marketNeedOptions = ["Demand", "USP", "Usability", "Nice to Have"];
+  const categoryOptions = ["Feature", "Enhancement", "Feedback"];
 
   function handleAutocompleteChange(field, options) {
     setFilters((prev) => ({
@@ -119,8 +92,10 @@ export default function FilterPanel({ onFiltersChange }) {
   }
 
   function clearFilter(field) {
+    const isDate = ["dueFrom", "dueTo"].includes(field);
+    const isEffort = ["estimatedEffortMin", "estimatedEffortMax"].includes(field);
     setFilters((prev) =>
-      ["dueFrom", "dueTo"].includes(field)
+      isDate || isEffort
         ? { ...prev, [field]: "" }
         : { ...prev, [field]: [] }
     );
@@ -132,13 +107,27 @@ export default function FilterPanel({ onFiltersChange }) {
       priorities: [],
       statuses: [],
       columns: [],
+      impact: [],
+      market_need: [],
+      category: [],
+      estimatedEffortMin: "",
+      estimatedEffortMax: "",
       dueFrom: "",
-      dueTo: ""
+      dueTo: "",
     });
   }
 
   function handleDateChange(type, val) {
     setFilters((prev) => ({ ...prev, [type]: val }));
+  }
+
+  function handleEffortChange(type, val) {
+    // Store empty string if invalid/empty, else numeric string for comparison in board
+    if (val === "" || val === null || Number.isNaN(Number(val))) {
+      setFilters((prev) => ({ ...prev, [type]: "" }));
+    } else {
+      setFilters((prev) => ({ ...prev, [type]: String(Math.max(0, Number(val))) }));
+    }
   }
 
   // Render active filter chips
@@ -155,40 +144,54 @@ export default function FilterPanel({ onFiltersChange }) {
     );
     filters.columns.forEach((colId) => {
       const col = columnOptions.find((c) => c.id === colId);
-      chips.push({ label: col ? col.title : colId, field: "columns", value: colId });
+      chips.push({
+        label: col ? col.title : colId,
+        field: "columns",
+        value: colId,
+      });
     });
+
+    // New fields
+    filters.impact.forEach((v) =>
+      chips.push({ label: v, field: "impact", value: v })
+    );
+    filters.market_need.forEach((v) =>
+      chips.push({ label: v, field: "market_need", value: v })
+    );
+    filters.category.forEach((v) =>
+      chips.push({ label: v, field: "category", value: v })
+    );
+
+    if (filters.estimatedEffortMin !== "" && filters.estimatedEffortMin !== null)
+      chips.push({
+        label: `Effort ≥ ${filters.estimatedEffortMin}`,
+        field: "estimatedEffortMin",
+      });
+    if (filters.estimatedEffortMax !== "" && filters.estimatedEffortMax !== null)
+      chips.push({
+        label: `Effort ≤ ${filters.estimatedEffortMax}`,
+        field: "estimatedEffortMax",
+      });
+
     if (filters.dueFrom)
       chips.push({ label: `Due ≥ ${filters.dueFrom}`, field: "dueFrom" });
     if (filters.dueTo)
       chips.push({ label: `Due ≤ ${filters.dueTo}`, field: "dueTo" });
+
     return chips;
   }
 
-  // Helpers for getting option label for columns
-  const getColumnLabel = (id) =>
-    (columnOptions.find((col) => col.id === id) || {}).title || id;
-
-  // Min width + font for minimal, modern look
-  const selectSx = {
-    minWidth: 86,
-    maxWidth: { xs: 150, sm: 200 },
-    fontSize: ".98em",
-    bgcolor: "var(--input-bg, #222a3b)",
-    borderRadius: 1.1,
-  };
-
   // MUI Autocomplete for searchable, taggable drop-downs (assignee, etc)
-  // We'll use freeSolo=false for enforced options, and checkboxes for accessibility.
   function MultiAutocomplete(field, options, label, icon, placeholder) {
     return (
       <Autocomplete
         sx={{
           minWidth: 115,
-          maxWidth: 200,
+          maxWidth: 220,
           "& .MuiInputBase-root": {
             bgcolor: "var(--input-bg, #232945)",
-            borderRadius: "10px"
-          }
+            borderRadius: "10px",
+          },
         }}
         multiple
         disableCloseOnSelect
@@ -204,25 +207,29 @@ export default function FilterPanel({ onFiltersChange }) {
                 bgcolor: "var(--color-bg-chip, #21384d)",
                 color: "var(--color-chip-text, #ebfdff)",
                 fontWeight: 600,
-                fontSize: ".97em"
+                fontSize: ".97em",
               }}
-              label={option}
+              label={typeof option === "string" ? option : option.title || ""}
               {...getTagProps({ index })}
-              key={option}
+              key={typeof option === "string" ? option : option.id}
             />
           ))
         }
-        renderOption={(props, option, { selected }) => (
-          <li {...props} key={option}>
-            <Checkbox
-              style={{ marginRight: 8 }}
-              checked={selected}
-              size="small"
-              color="primary"
-            />
-            {option}
-          </li>
-        )}
+        renderOption={(props, option, { selected }) => {
+          const optLabel = typeof option === "string" ? option : option.title;
+          const optKey = typeof option === "string" ? option : option.id;
+          return (
+            <li {...props} key={optKey}>
+              <Checkbox
+                style={{ marginRight: 8 }}
+                checked={selected}
+                size="small"
+                color="primary"
+              />
+              {optLabel}
+            </li>
+          );
+        }}
         renderInput={(params) => (
           <TextField
             {...params}
@@ -236,7 +243,7 @@ export default function FilterPanel({ onFiltersChange }) {
                   {icon}
                 </Box>
               ),
-              sx: { bgcolor: "var(--input-bg, #252B38)" }
+              sx: { bgcolor: "var(--input-bg, #252B38)" },
             }}
             sx={{
               "& .MuiOutlinedInput-root": {
@@ -245,15 +252,17 @@ export default function FilterPanel({ onFiltersChange }) {
                 py: 0.3,
                 background: "var(--input-bg, #212a3b)",
                 fontSize: ".97em",
-              }
+              },
             }}
           />
         )}
-        isOptionEqualToValue={(opt, val) => opt === val}
+        isOptionEqualToValue={(opt, val) =>
+          (typeof opt === "string" ? opt : opt.id) ===
+          (typeof val === "string" ? val : val.id)
+        }
         disableClearable={false}
         clearOnBlur={false}
         noOptionsText="No options"
-        checkboxIcon={<Checkbox color="primary" size="small" />}
         popupIcon={null}
       />
     );
@@ -264,11 +273,11 @@ export default function FilterPanel({ onFiltersChange }) {
       <Autocomplete
         sx={{
           minWidth: 120,
-          maxWidth: 195,
+          maxWidth: 210,
           "& .MuiInputBase-root": {
             bgcolor: "var(--input-bg, #232945)",
-            borderRadius: "10px"
-          }
+            borderRadius: "10px",
+          },
         }}
         multiple
         disableCloseOnSelect
@@ -290,7 +299,7 @@ export default function FilterPanel({ onFiltersChange }) {
                 bgcolor: "var(--color-bg-chip,#21384d)",
                 color: "var(--color-chip-text,#ebfdff)",
                 fontWeight: 600,
-                fontSize: ".97em"
+                fontSize: ".97em",
               }}
               label={option.title}
               {...getTagProps({ index })}
@@ -322,7 +331,7 @@ export default function FilterPanel({ onFiltersChange }) {
                   <ViewColumnIcon fontSize="small" />
                 </Box>
               ),
-              sx: { bgcolor: "var(--input-bg, #252B38)" }
+              sx: { bgcolor: "var(--input-bg, #252B38)" },
             }}
             sx={{
               "& .MuiOutlinedInput-root": {
@@ -331,7 +340,7 @@ export default function FilterPanel({ onFiltersChange }) {
                 py: 0.3,
                 background: "var(--input-bg, #212a3b)",
                 fontSize: ".97em",
-              }
+              },
             }}
           />
         )}
@@ -354,7 +363,7 @@ export default function FilterPanel({ onFiltersChange }) {
     >
       <form
         className="filter-row"
-        onSubmit={e => e.preventDefault()}
+        onSubmit={(e) => e.preventDefault()}
         spellCheck={false}
         autoComplete="off"
         aria-label="Kanban Filters"
@@ -400,18 +409,112 @@ export default function FilterPanel({ onFiltersChange }) {
         <div style={{ minWidth: 0, display: "flex", alignItems: "center", gap: 6 }}>
           {ColumnMultiAutocomplete()}
         </div>
+
+        {/* NEW: IMPACT */}
+        <div style={{ minWidth: 0, display: "flex", alignItems: "center", gap: 6 }}>
+          {MultiAutocomplete(
+            "impact",
+            impactOptions,
+            "Impact",
+            <InsightsIcon fontSize="small" />,
+            "Impact"
+          )}
+        </div>
+
+        {/* NEW: MARKET NEED */}
+        <div style={{ minWidth: 0, display: "flex", alignItems: "center", gap: 6 }}>
+          {MultiAutocomplete(
+            "market_need",
+            marketNeedOptions,
+            "Market Need",
+            <LightbulbOutlinedIcon fontSize="small" />,
+            "Market Need"
+          )}
+        </div>
+
+        {/* NEW: CATEGORY */}
+        <div style={{ minWidth: 0, display: "flex", alignItems: "center", gap: 6 }}>
+          {MultiAutocomplete(
+            "category",
+            categoryOptions,
+            "Category",
+            <CategoryIcon fontSize="small" />,
+            "Category"
+          )}
+        </div>
+
+        {/* NEW: Estimated Effort Range */}
+        <div
+          style={{
+            minWidth: 0,
+            display: "flex",
+            alignItems: "center",
+            gap: 4,
+            marginLeft: 6,
+          }}
+          aria-label="Estimated Effort range"
+        >
+          <SpeedIcon fontSize="small" style={{ color: "#ffc48a", marginRight: 2 }} />
+          <input
+            type="number"
+            min="0"
+            step="1"
+            inputMode="numeric"
+            value={filters.estimatedEffortMin}
+            onChange={(e) => handleEffortChange("estimatedEffortMin", e.target.value)}
+            className="filter-date"
+            aria-label="Estimated Effort minimum"
+            placeholder="Effort min"
+            style={{
+              minWidth: 69,
+              fontSize: ".93em",
+              borderRadius: 8,
+              height: 32,
+              background: "var(--input-bg,#212a3b)",
+              color: "var(--color-text-main,#fff)",
+              border: "1.5px solid var(--input-border,#38B2AC)",
+            }}
+          />
+          <span aria-hidden style={{ color: "#888", fontWeight: 400, margin: "0 2px" }}>
+            –
+          </span>
+          <input
+            type="number"
+            min="0"
+            step="1"
+            inputMode="numeric"
+            value={filters.estimatedEffortMax}
+            onChange={(e) => handleEffortChange("estimatedEffortMax", e.target.value)}
+            className="filter-date"
+            aria-label="Estimated Effort maximum"
+            placeholder="Effort max"
+            style={{
+              minWidth: 69,
+              fontSize: ".93em",
+              borderRadius: 8,
+              height: 32,
+              background: "var(--input-bg,#212a3b)",
+              color: "var(--color-text-main,#fff)",
+              border: "1.5px solid var(--input-border,#38B2AC)",
+            }}
+          />
+        </div>
+
         {/* Due Date Range */}
         <div
           style={{
-            minWidth: 0, display: "flex", alignItems: "center", gap: 4,
-            marginLeft: 10
+            minWidth: 0,
+            display: "flex",
+            alignItems: "center",
+            gap: 4,
+            marginLeft: 10,
           }}
         >
           <EventIcon fontSize="small" style={{ color: "#c6fa94", marginRight: 2 }} />
           <input
             type="date"
             value={filters.dueFrom}
-            onChange={e => handleDateChange("dueFrom", e.target.value)}
+            onChange={(e) => handleDateChange("dueFrom", e.target.value)}
             className="filter-date"
             aria-label="Due date from"
             style={{
@@ -421,14 +524,16 @@ export default function FilterPanel({ onFiltersChange }) {
               height: 32,
               background: "var(--input-bg,#212a3b)",
               color: "var(--color-text-main,#fff)",
-              border: "1.5px solid var(--input-border,#38B2AC)"
+              border: "1.5px solid var(--input-border,#38B2AC)",
             }}
           />
-          <span aria-hidden style={{ color: "#888", fontWeight: 400, margin: "0 2px" }}>–</span>
+          <span aria-hidden style={{ color: "#888", fontWeight: 400, margin: "0 2px" }}>
+            –
+          </span>
           <input
             type="date"
             value={filters.dueTo}
-            onChange={e => handleDateChange("dueTo", e.target.value)}
+            onChange={(e) => handleDateChange("dueTo", e.target.value)}
             className="filter-date"
             aria-label="Due date to"
             style={{
@@ -438,10 +543,11 @@ export default function FilterPanel({ onFiltersChange }) {
               height: 32,
               background: "var(--input-bg,#212a3b)",
               color: "var(--color-text-main,#fff)",
-              border: "1.5px solid var(--input-border,#38B2AC)"
+              border: "1.5px solid var(--input-border,#38B2AC)",
             }}
           />
         </div>
+
         {/* Reset Button */}
         <button
           type="button"
@@ -455,13 +561,14 @@ export default function FilterPanel({ onFiltersChange }) {
             marginLeft: 9,
             fontSize: ".98em",
             padding: "7px 15px",
-            borderRadius: "12px"
+            borderRadius: "12px",
           }}
           onClick={resetFilters}
         >
           Reset
         </button>
       </form>
+
       {/* Render active chips for any field */}
       <div
         className="filter-chipbar"
@@ -498,11 +605,16 @@ export default function FilterPanel({ onFiltersChange }) {
               aria-label={`Remove ${chip.label}`}
               onClick={() =>
                 chip.value
-                  ? handleChipDelete(chip.field, chip.value)
+                  ? setFilters((prev) => ({
+                      ...prev,
+                      [chip.field]: prev[chip.field].filter((v) => v !== chip.value),
+                    }))
                   : clearFilter(chip.field)
               }
               style={{ marginLeft: "4px", fontSize: ".95em", color: "#ef8585" }}
-            >×</button>
+            >
+              ×
+            </button>
           </span>
         ))}
       </div>

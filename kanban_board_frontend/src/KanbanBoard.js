@@ -43,30 +43,66 @@ function filterCardsAND(cards, filters, columns) {
       filters.assignees.length > 0 &&
       (!c.assignee || !filters.assignees.includes(c.assignee))
     ) return false;
+
     // Priority
     if (
       filters.priorities &&
       filters.priorities.length > 0 &&
       (!c.priority || !filters.priorities.includes(c.priority))
     ) return false;
+
     // Status
     if (
       filters.statuses &&
       filters.statuses.length > 0 &&
       (!c.status || !filters.statuses.includes(c.status))
     ) return false;
+
     // Column (by id)
     if (
       filters.columns &&
       filters.columns.length > 0 &&
       (!c.column_id || !filters.columns.includes(c.column_id))
     ) return false;
+
+    // Impact (ENUM)
+    if (
+      filters.impact &&
+      filters.impact.length > 0 &&
+      (!c.impact || !filters.impact.includes(c.impact))
+    ) return false;
+
+    // Market Need (ENUM)
+    if (
+      filters.market_need &&
+      filters.market_need.length > 0 &&
+      (!c.market_need || !filters.market_need.includes(c.market_need))
+    ) return false;
+
+    // Category (ENUM)
+    if (
+      filters.category &&
+      filters.category.length > 0 &&
+      (!c.category || !filters.category.includes(c.category))
+    ) return false;
+
+    // Estimated Effort range: if a bound exists, card must have a number and be within range
+    const hasMin = filters.estimatedEffortMin !== undefined && filters.estimatedEffortMin !== '' && filters.estimatedEffortMin !== null;
+    const hasMax = filters.estimatedEffortMax !== undefined && filters.estimatedEffortMax !== '' && filters.estimatedEffortMax !== null;
+    if (hasMin || hasMax) {
+      if (c.estimated_effort === undefined || c.estimated_effort === null || c.estimated_effort === '') return false;
+      const val = Number(c.estimated_effort);
+      if (hasMin && val < Number(filters.estimatedEffortMin)) return false;
+      if (hasMax && val > Number(filters.estimatedEffortMax)) return false;
+    }
+
     // Due Date Range
     if (filters.dueFrom || filters.dueTo) {
       if (!c.due_date) return false;
       if (filters.dueFrom && c.due_date < filters.dueFrom) return false;
       if (filters.dueTo && c.due_date > filters.dueTo) return false;
     }
+
     return true;
   });
 }
@@ -117,6 +153,13 @@ function KanbanBoardInner() {
     priorities: [],
     statuses: [],
     columns: [],
+    // New filter fields
+    impact: [],
+    market_need: [],
+    category: [],
+    estimatedEffortMin: "",
+    estimatedEffortMax: "",
+    // Existing date range
     dueFrom: "",
     dueTo: ""
   });
