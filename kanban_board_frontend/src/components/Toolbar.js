@@ -12,6 +12,8 @@ import FullscreenExitIcon from '@mui/icons-material/FullscreenExit';
  *  - due_date formatted as 'YYYY-MM-DD' or blank
  *  - estimated_effort is a number cell when present, otherwise blank
  *  - all string fields trimmed and default to '' when missing
+ * Includes:
+ *  - id field as the first column for accurate updates
  */
 function buildExportRows(cards, columns) {
   if (!Array.isArray(cards)) return [];
@@ -30,6 +32,7 @@ function buildExportRows(cards, columns) {
       ? Number(c.estimated_effort)
       : '';
     return {
+      id: c.id || '',
       feature: (c.feature || '').trim(),
       description: (c.description || '').trim(),
       assignee: (c.assignee || '').trim(),
@@ -45,8 +48,24 @@ function buildExportRows(cards, columns) {
   });
 }
 
-// Public export header order
+// Headers for blank template (no id for new entries)
+const TEMPLATE_HEADERS = [
+  'feature',
+  'description',
+  'assignee',
+  'notes',
+  'priority',
+  'status',
+  'due_date',
+  'impact',
+  'market_need',
+  'estimated_effort',
+  'category',
+];
+
+// Public export header order including id for update workflows
 const EXPORT_HEADERS = [
+  'id',
   'feature',
   'description',
   'assignee',
@@ -63,11 +82,12 @@ const EXPORT_HEADERS = [
 /**
  * Download a blank Excel template with headers that match the board schema,
  * including the new fields.
+ * Note: Template does not include 'id' since it's meant for new records.
  */
 function downloadExcelTemplate() {
   const template = [
     // Header row
-    EXPORT_HEADERS,
+    TEMPLATE_HEADERS,
     // Sample row (as guidance)
     [
       'Sample Task',
@@ -135,6 +155,11 @@ function Toolbar({ onToggleFullscreen, isFullscreen }) {
     excelRows: [],
     header: [],
     entries: [],
+  });
+
+  // Modal state for Export by Column
+  const [exportByColumnState, setExportByColumnState] = React.useState({
+    showModal: false,
   });
 
   // Show ToastModal for Add Column
@@ -255,7 +280,7 @@ function Toolbar({ onToggleFullscreen, isFullscreen }) {
     }
   };
 
-  // Export handlers
+  // Export handlers (all-cards)
   const handleExportExcel = () => {
     const rows = buildExportRows(cards || [], columns || []);
     downloadBoardExcel(rows);
@@ -263,6 +288,30 @@ function Toolbar({ onToggleFullscreen, isFullscreen }) {
   const handleExportCSV = () => {
     const rows = buildExportRows(cards || [], columns || []);
     downloadBoardCSV(rows);
+  };
+
+  // Export by column - open modal
+  const handleExportByColumn = () => {
+    if (!columns || columns.length === 0) {
+      showToast("No columns available to export.", "info");
+      return;
+    }
+    setExportByColumnState({ showModal: true });
+  };
+
+  // Export by column confirm
+  const handleConfirmExportByColumn = (colIdx) => {
+    const idx = Number(colIdx);
+    const col = columns[idx];
+    setExportByColumnState({ showModal: false });
+    if (!col) {
+      showToast("Invalid column selection.", "error");
+      return;
+    }
+    const subset = (cards || []).filter(c => c.column_id === col.id);
+    const rows = buildExportRows(subset, columns || []);
+    downloadBoardExcel(rows);
+    showToast(`Exported ${rows.length} card(s) from "${col.title}"`, "success");
   };
 
 /* ---------- UI rendering section below ---------- */
@@ -276,7 +325,10 @@ function Toolbar({ onToggleFullscreen, isFullscreen }) {
           Download Excel Template
         </button>
         <button className="btn" onClick={handleExportExcel} style={{ marginLeft: 8 }}>
-          Export Excel
+          Export Excel (All)
+        </button>
+        <button className="btn" onClick={handleExportByColumn} style={{ marginLeft: 6 }}>
+          Export Excel (Column)
         </button>
         <button className="btn" onClick={handleExportCSV} style={{ marginLeft: 6 }}>
           Export CSV
@@ -392,6 +444,59 @@ function Toolbar({ onToggleFullscreen, isFullscreen }) {
                   </div>
                   <div style={{ color: "#a06700", fontSize: "0.96em", margin: "7px 0 0 1px" }}>
                     Cards parsed from file: <strong>{bulkUploadState.entries.length}</strong>
+                  </div>
+                </div>
+              </div>,
+              document.body
+            )
+      )}
+      {/* Export by Column Modal */}
+      {exportByColumnState.showModal && (
+        typeof document === "undefined"
+          ? null
+          : ReactDOM.createPortal(
+              <div className="kanban-modal-overlay" onClick={() => setExportByColumnState({ showModal: false })}>
+                <div
+                  className="kanban-modal-dialog"
+                  onClick={e => e.stopPropagation()}
+                  style={{
+                    color: "#222",
+                    background: "var(--modal-bg, #fff6e0)",
+                    borderRadius: "17px",
+                  }}
+                >
+                  <button
+                    className="kanban-modal-close"
+                    onClick={() => setExportByColumnState({ showModal: false })}
+                    title="Close"
+                    style={{ color: "#222", background: "none", border: "none" }}
+                  >
+                    ×
+                  </button>
+                  <div style={{ fontWeight: 700, fontSize: '1.19em', marginBottom: 14, color: "#222" }}>
+                    Export Excel: Pick a column to export
+                  </div>
+                  <div style={{ marginBottom: 12 }}>
+                    <div style={{ color: "#555" }}>Select a column:</div>
+                    <div style={{ margin: "9px 0"}}>
+                      <select
+                        style={{
+                          width: "100%",
+                          padding: 6,
+                          fontSize: "1em",
+                          background: "var(--input-bg, #fff9e7)",
+                          color: "#292010",
+                          border: "1.5px solid var(--color-input-border, #ffb300)"
+                        }}
+                        onChange={e => handleConfirmExportByColumn(e.target.value)}
+                        defaultValue=""
+                      >
+                        <option value="" disabled>Choose column...</option>
+                        {columns.map((c, i) => (
+                          <option value={i} key={c.id}>{c.title}</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
                 </div>
               </div>,
