@@ -232,11 +232,6 @@ export default function Summary() {
                     className={`summary-col-card ${getStatusClass(card.status)}`}
                     title={card.description || card.feature}
                   >
-                    <span
-                      className="summary-chip-dot"
-                      aria-hidden
-                      style={{ background: getStatusDotColor(card.status) }}
-                    />
                     <span className="summary-col-card-title">{card.feature}</span>
                     {card.assignee && (
                       <span className="summary-col-assignee" title="Assignee">
@@ -255,15 +250,7 @@ export default function Summary() {
     );
   }
 
-  function getStatusDotColor(status) {
-    const st = (status || '').toLowerCase();
-    if (st.includes('progress')) return '#E1986E';
-    if (st.includes('done')) return '#36B37E';
-    if (st.includes('review')) return '#D3A94E';
-    if (st.includes('hold')) return '#D7827F';
-    if (st.includes('todo')) return '#A0A4AE';
-    return '#CFCFD4';
-  }
+  // Status dot indicator removed from Summary cards; color marker no longer displayed.
 
   // Map card status to a CSS class for status-based background colors on summary cards
   function getStatusClass(status) {
