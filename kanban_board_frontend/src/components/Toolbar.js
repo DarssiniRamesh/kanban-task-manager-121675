@@ -5,6 +5,13 @@ import * as XLSX from 'xlsx';
 import { useFeedback, useExpandMode } from '../KanbanBoard';
 import FullscreenIcon from '@mui/icons-material/Fullscreen';
 import FullscreenExitIcon from '@mui/icons-material/FullscreenExit';
+import { Tooltip, IconButton } from '@mui/material';
+import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
+import GridOnIcon from '@mui/icons-material/GridOn';
+import IosShareIcon from '@mui/icons-material/IosShare';
+import TableViewIcon from '@mui/icons-material/TableView';
+import FileDownloadIcon from '@mui/icons-material/FileDownload';
+import FileUploadIcon from '@mui/icons-material/FileUpload';
 
 /**
  * Build export rows from cards with a stable header order and value formatting.
@@ -320,52 +327,98 @@ function Toolbar({ onToggleFullscreen, isFullscreen }) {
   return (
     <>
       <div className="kanban-toolbar">
-        <button className="btn" onClick={handleAddColumn}>
-          + Add Column
-        </button>
-        <button className="btn" onClick={downloadExcelTemplate}>
-          Download Excel Template
-        </button>
-        <button className="btn" onClick={handleExportExcel} style={{ marginLeft: 8 }}>
-          Export Excel (All)
-        </button>
-        <button className="btn" onClick={handleExportByColumn} style={{ marginLeft: 6 }}>
-          Export Excel (Column)
-        </button>
-        <button className="btn" onClick={handleExportCSV} style={{ marginLeft: 6 }}>
-          Export CSV
-        </button>
-        <button
-          className="btn"
-          style={{ marginLeft: 8, background: isCompact ? '#445' : undefined }}
-          onClick={() => setIsCompact(v => !v)}
-          aria-pressed={isCompact}
-          aria-label={isCompact ? 'Expand all cards' : 'Shorten all cards'}
-          title={isCompact ? 'Expand all cards' : 'Shorten all cards'}
-        >
-          {isCompact ? 'Expand' : 'Shorten'}
-        </button>
-        <label className="btn" style={{ marginLeft: 8 }}>
-          Bulk Upload Excel
-          <input
-            type="file"
-            accept=".xlsx,.xls"
-            style={{ display: 'none' }}
-            ref={inputRef}
-            onChange={handleExcelUpload}
-          />
-        </label>
-        {typeof onToggleFullscreen === 'function' && (
+        <Tooltip title="Add Column" arrow>
+          <IconButton
+            color="primary"
+            aria-label="Add Column"
+            onClick={handleAddColumn}
+            size="large"
+          >
+            <AddCircleOutlineIcon />
+          </IconButton>
+        </Tooltip>
+
+        <Tooltip title="Download Excel Template" arrow>
+          <IconButton
+            aria-label="Download Excel Template"
+            onClick={downloadExcelTemplate}
+            size="large"
+          >
+            <GridOnIcon />
+          </IconButton>
+        </Tooltip>
+
+        <Tooltip title="Export Excel (All)" arrow>
+          <IconButton
+            aria-label="Export Excel (All)"
+            onClick={handleExportExcel}
+            size="large"
+          >
+            <IosShareIcon />
+          </IconButton>
+        </Tooltip>
+
+        <Tooltip title="Export Excel (Column)" arrow>
+          <IconButton
+            aria-label="Export Excel (Column)"
+            onClick={handleExportByColumn}
+            size="large"
+          >
+            <TableViewIcon />
+          </IconButton>
+        </Tooltip>
+
+        <Tooltip title="Export CSV" arrow>
+          <IconButton
+            aria-label="Export CSV"
+            onClick={handleExportCSV}
+            size="large"
+          >
+            <FileDownloadIcon />
+          </IconButton>
+        </Tooltip>
+
+        <Tooltip title={isCompact ? 'Expand all cards' : 'Shorten all cards'} arrow>
           <button
             className="btn"
-            style={{ marginLeft: 8, display: 'inline-flex', alignItems: 'center', gap: 6 }}
-            onClick={onToggleFullscreen}
-            aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
-            title={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+            style={{ marginLeft: 0, background: isCompact ? '#445' : undefined }}
+            onClick={() => setIsCompact(v => !v)}
+            aria-pressed={isCompact}
+            aria-label={isCompact ? 'Expand all cards' : 'Shorten all cards'}
+            title={isCompact ? 'Expand all cards' : 'Shorten all cards'}
           >
-            {isFullscreen ? <FullscreenExitIcon fontSize="small" /> : <FullscreenIcon fontSize="small" />}
-            <span style={{ fontWeight: 700 }}>{isFullscreen ? 'Exit' : 'Fullscreen'}</span>
+            {isCompact ? 'Expand' : 'Shorten'}
           </button>
+        </Tooltip>
+
+        {/* Hidden file input for bulk upload */}
+        <input
+          type="file"
+          accept=".xlsx,.xls"
+          style={{ display: 'none' }}
+          ref={inputRef}
+          onChange={handleExcelUpload}
+        />
+        <Tooltip title="Bulk Upload Excel" arrow>
+          <IconButton
+            aria-label="Bulk Upload Excel"
+            onClick={() => inputRef.current && inputRef.current.click()}
+            size="large"
+          >
+            <FileUploadIcon />
+          </IconButton>
+        </Tooltip>
+
+        {typeof onToggleFullscreen === 'function' && (
+          <Tooltip title={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'} arrow>
+            <IconButton
+              aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+              onClick={onToggleFullscreen}
+              size="large"
+            >
+              {isFullscreen ? <FullscreenExitIcon fontSize="small" /> : <FullscreenIcon fontSize="small" />}
+            </IconButton>
+          </Tooltip>
         )}
       </div>
       {/* Add Column Modal */}

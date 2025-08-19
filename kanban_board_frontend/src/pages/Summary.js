@@ -7,6 +7,7 @@ import UnfoldLessIcon from '@mui/icons-material/UnfoldLess';
 import UnfoldMoreIcon from '@mui/icons-material/UnfoldMore';
 import FullscreenIcon from '@mui/icons-material/Fullscreen';
 import FullscreenExitIcon from '@mui/icons-material/FullscreenExit';
+import { Tooltip, IconButton } from '@mui/material';
 
 /**
  * PUBLIC_INTERFACE
@@ -290,17 +291,15 @@ export default function Summary() {
             </p>
           </div>
           <div>
-            <button
-              type="button"
-              className="summary-col-actionbtn"
-              aria-label={fullScreen ? 'Exit fullscreen' : 'Enter fullscreen'}
-              title={fullScreen ? 'Exit fullscreen' : 'Enter fullscreen'}
-              onClick={() => setFullScreen(v => !v)}
-              style={{ padding: '6px 10px', display: 'inline-flex', alignItems: 'center', gap: 6 }}
-            >
-              {fullScreen ? <FullscreenExitIcon fontSize="small" /> : <FullscreenIcon fontSize="small" />}
-              <span style={{ fontWeight: 700 }}>{fullScreen ? 'Exit' : 'Fullscreen'}</span>
-            </button>
+            <Tooltip title={fullScreen ? 'Exit fullscreen' : 'Enter fullscreen'} arrow>
+              <IconButton
+                aria-label={fullScreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+                onClick={() => setFullScreen(v => !v)}
+                size="large"
+              >
+                {fullScreen ? <FullscreenExitIcon fontSize="small" /> : <FullscreenIcon fontSize="small" />}
+              </IconButton>
+            </Tooltip>
           </div>
         </div>
 

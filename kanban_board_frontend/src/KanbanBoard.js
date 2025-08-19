@@ -10,6 +10,7 @@ import { COLUMN_TYPE } from './components/dndTypes';
 import { useKanban } from './KanbanContext';
 import { useDrop, useDrag } from 'react-dnd';
 import FullscreenExitIcon from '@mui/icons-material/FullscreenExit';
+import { Tooltip } from '@mui/material';
 
 import './KanbanBoard.css';
 
@@ -266,15 +267,15 @@ function KanbanBoardInner() {
 
       {/* Exit Full Screen floating button - only visible in fullscreen mode */}
       {fullScreen && (
-        <button
-          className="fullscreen-exit-btn"
-          onClick={() => setFullScreen(false)}
-          title="Exit Full Screen"
-          aria-label="Exit Full Screen"
-        >
-          <FullscreenExitIcon fontSize="small" />
-          <span className="fullscreen-exit-label">Exit</span>
-        </button>
+        <Tooltip title="Exit Full Screen" placement="left" arrow>
+          <button
+            className="fullscreen-exit-btn"
+            onClick={() => setFullScreen(false)}
+            aria-label="Exit Full Screen"
+          >
+            <FullscreenExitIcon fontSize="small" />
+          </button>
+        </Tooltip>
       )}
 
       <div className="kanban-board" role="list" aria-label="Kanban Columns">
