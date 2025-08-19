@@ -2,8 +2,9 @@ import React, { useState, createContext, useContext } from 'react';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { useDrop, useDrag } from 'react-dnd';
-import { Tooltip } from '@mui/material';
+import { Tooltip, IconButton } from '@mui/material';
 import FullscreenExitIcon from '@mui/icons-material/FullscreenExit';
+import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 
 import { useKanban } from './KanbanContext';
 import { COLUMN_TYPE, CARD_TYPE } from './components/dndTypes';
@@ -33,6 +34,7 @@ function MarketBoardInner() {
     reorderMarketColumns,
     cards,
     updateCard,
+    addMarketColumn,
   } = useKanban();
 
   const { showToast } = useMarketFeedback();
@@ -196,13 +198,50 @@ function MarketBoardInner() {
   // Compact toggle for card rendering
   const [isCompact, setIsCompact] = React.useState(false);
 
+  // State for Add Market Column modal
+  const [addMarketColumnModal, setAddMarketColumnModal] = React.useState(false);
+  const [newMarketColTitle, setNewMarketColTitle] = React.useState("");
+
+  const handleAddMarketColumn = () => {
+    setAddMarketColumnModal(true);
+    setNewMarketColTitle("");
+  };
+
+  const handleAddMarketColumnSubmit = async (e) => {
+    e.preventDefault();
+    const title = (newMarketColTitle || "").trim();
+    if (!title) {
+      showToast && showToast("Column title cannot be empty.", "error");
+      return;
+    }
+    try {
+      const resp = await addMarketColumn(title);
+      if (resp && resp.message) throw new Error(resp.message);
+      showToast && showToast("Market column added!", "success");
+      setAddMarketColumnModal(false);
+    } catch (err) {
+      showToast && showToast("Failed to add market column: " + (err.message || err), "error");
+    }
+  };
+
   return (
     <div className="kanban-app-container">
       {/* Minimal top controls for Market view */}
       <div className="kanban-toolbar">
+        <Tooltip title="Add Market Column" arrow>
+          <IconButton
+            color="primary"
+            aria-label="Add Market Column"
+            onClick={handleAddMarketColumn}
+            size="large"
+          >
+            <AddCircleOutlineIcon />
+          </IconButton>
+        </Tooltip>
+
         <button
           className="btn"
-          style={{ marginLeft: 0, background: isCompact ? '#445' : undefined }}
+          style={{ marginLeft: 4, background: isCompact ? '#445' : undefined }}
           onClick={() => setIsCompact(v => !v)}
           aria-pressed={isCompact}
           aria-label={isCompact ? 'Expand all cards' : 'Shorten all cards'}
@@ -221,6 +260,52 @@ function MarketBoardInner() {
           {fullScreen ? 'Exit Fullscreen' : 'Fullscreen'}
         </button>
       </div>
+
+      {/* Add Market Column Modal */}
+      {addMarketColumnModal && (
+        typeof document === "undefined"
+          ? null
+          : require('react-dom').createPortal(
+              <div className="kanban-modal-overlay" onClick={() => setAddMarketColumnModal(false)}>
+                <div className="kanban-modal-dialog" onClick={e => e.stopPropagation()}>
+                  <button
+                    className="kanban-modal-close"
+                    onClick={() => setAddMarketColumnModal(false)}
+                    title="Close"
+                  >
+                    ×
+                  </button>
+                  <form onSubmit={handleAddMarketColumnSubmit}>
+                    <div style={{ fontWeight: 700, fontSize: '1.19em', marginBottom: 12 }}>
+                      Add Market Column
+                    </div>
+                    <input
+                      type="text"
+                      placeholder="Market Column Title"
+                      value={newMarketColTitle}
+                      onChange={e => setNewMarketColTitle(e.target.value)}
+                      required
+                      style={{
+                        padding: 6,
+                        fontSize: '1.08em',
+                        width: '100%',
+                        marginBottom: 18,
+                        borderRadius: 4,
+                        border: '1px solid #334266',
+                        background: '#242d46',
+                        color: '#fff',
+                      }}
+                    />
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button className="btn" type="submit">Add</button>
+                      <button className="btn" type="button" onClick={() => setAddMarketColumnModal(false)}>Cancel</button>
+                    </div>
+                  </form>
+                </div>
+              </div>,
+              document.body
+            )
+      )}
 
       {/* FilterPanel: use Market columns mode */}
       <FilterPanel onFiltersChange={setFilters} useMarketColumns />
