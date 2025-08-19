@@ -1,10 +1,16 @@
 import React, { useState } from 'react';
+import ReactDOM from 'react-dom';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { useDrop, useDrag } from 'react-dnd';
 import { Tooltip, IconButton } from '@mui/material';
 import FullscreenExitIcon from '@mui/icons-material/FullscreenExit';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
+import GridOnIcon from '@mui/icons-material/GridOn';
+import IosShareIcon from '@mui/icons-material/IosShare';
+import TableViewIcon from '@mui/icons-material/TableView';
+import FileDownloadIcon from '@mui/icons-material/FileDownload';
+import FileUploadIcon from '@mui/icons-material/FileUpload';
 
 import { useKanban } from './KanbanContext';
 import { COLUMN_TYPE, CARD_TYPE } from './components/dndTypes';
@@ -13,6 +19,15 @@ import ToastModal from './components/ToastModal';
 import KanbanCard from './components/KanbanCard';
 import './KanbanBoard.css';
 import { FeedbackContext, useFeedback } from './contexts/FeedbackContext';
+import {
+  buildExportRows,
+  downloadExcelTemplate,
+  exportToExcel,
+  exportToCSV,
+  readExcelFile,
+  mapEntriesToCards,
+  ALLOWED_CARD_FIELDS
+} from './utils/importExport';
 
 /* PUBLIC_INTERFACE
  * MarketBoard
@@ -30,6 +45,8 @@ function MarketBoardInner() {
     cards,
     updateCard,
     addMarketColumn,
+    importCards,
+    columns,
   } = useKanban();
 
   const { showToast } = useFeedback();
@@ -197,6 +214,19 @@ function MarketBoardInner() {
   const [addMarketColumnModal, setAddMarketColumnModal] = React.useState(false);
   const [newMarketColTitle, setNewMarketColTitle] = React.useState("");
 
+  // Shared Import/Export state (same UX as Kanban Toolbar)
+  const fileInputRef = React.useRef(null);
+  const [bulkUploadState, setBulkUploadState] = React.useState({
+    showModal: false,
+    header: [],
+    entries: [],
+    selectedKanbanIndex: '',
+    selectedMarketIndex: '',
+  });
+  const [exportByMarketState, setExportByMarketState] = React.useState({
+    showModal: false,
+  });
+
   const handleAddMarketColumn = () => {
     setAddMarketColumnModal(true);
     setNewMarketColTitle("");
@@ -219,9 +249,91 @@ function MarketBoardInner() {
     }
   };
 
+  // Export handlers (all cards)
+  const onExportExcelAll = () => {
+    const rows = buildExportRows(cards || [], columns || []);
+    exportToExcel(rows);
+  };
+  const onExportCSVAll = () => {
+    const rows = buildExportRows(cards || [], columns || []);
+    exportToCSV(rows);
+  };
+  const onOpenExportByMarket = () => {
+    if (!marketColumns || marketColumns.length === 0) {
+      showToast && showToast("No market columns available to export.", "info");
+      return;
+    }
+    setExportByMarketState({ showModal: true });
+  };
+  const onConfirmExportByMarket = (marketIdx) => {
+    const idx = Number(marketIdx);
+    const mCol = (marketColumns || [])[idx];
+    setExportByMarketState({ showModal: false });
+    if (!mCol) {
+      showToast && showToast("Invalid market column selection.", "error");
+      return;
+    }
+    const subset = (cards || []).filter(c => c.market_kanban_column_id === mCol.id);
+    const rows = buildExportRows(subset, columns || []);
+    exportToExcel(rows);
+    showToast && showToast(`Exported ${rows.length} card(s) from "${mCol.title}"`, "success");
+  };
+
+  // Bulk import: read file, show modal to choose Product and Market columns
+  const onFileChange = async (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    try {
+      const { header, entries } = await readExcelFile(file);
+      if (!header || header.length === 0) {
+        showToast && showToast("No header row found in Excel file.", "error");
+        return;
+      }
+      setBulkUploadState({
+        showModal: true,
+        header,
+        entries,
+        selectedKanbanIndex: '',
+        selectedMarketIndex: '',
+      });
+    } catch (err) {
+      showToast && showToast("Failed to parse Excel file: " + (err.message || String(err)), "error");
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const onConfirmBulkUpload = async () => {
+    const kIdx = Number(bulkUploadState.selectedKanbanIndex);
+    const mIdx = Number(bulkUploadState.selectedMarketIndex);
+    const prodCol = (columns || [])[kIdx];
+    const mCol = (marketColumns || [])[mIdx];
+    setBulkUploadState(s => ({ ...s, showModal: false }));
+    if (!prodCol || !mCol) {
+      showToast && showToast("Please select both a Kanban column and a Market column.", "error");
+      return;
+    }
+    const parsedRows = mapEntriesToCards(bulkUploadState.header, bulkUploadState.entries, ALLOWED_CARD_FIELDS);
+    if (parsedRows.length === 0) {
+      showToast && showToast('No valid cards found in the file. Make sure "feature" column is filled.', "error");
+      return;
+    }
+    try {
+      const result = await importCards(prodCol.id, parsedRows, mCol.id);
+      if (result && result.error) {
+        showToast && showToast(`Import failed: ${result.error}`, "error");
+      } else {
+        const { updatedCount = 0, insertedCount = 0, skippedDuplicates = 0 } = result || {};
+        showToast && showToast(`Import complete: ${updatedCount} updated, ${insertedCount} added, ${skippedDuplicates} skipped`, "success");
+      }
+    } catch (e) {
+      showToast && showToast('Import encountered an error: ' + (e.message || e), "error");
+    }
+  };
+
   return (
     <div className="kanban-app-container">
-      {/* Minimal top controls for Market view */}
+      {/* Unified top controls for Market view: add market column, template/export/CSV/bulk upload and fullscreen */}
       <div className="kanban-toolbar">
         <Tooltip title="Add Market Column" arrow>
           <IconButton
@@ -231,6 +343,64 @@ function MarketBoardInner() {
             size="large"
           >
             <AddCircleOutlineIcon />
+          </IconButton>
+        </Tooltip>
+
+        <Tooltip title="Download Excel Template" arrow>
+          <IconButton
+            aria-label="Download Excel Template"
+            onClick={() => downloadExcelTemplate()}
+            size="large"
+          >
+            <GridOnIcon />
+          </IconButton>
+        </Tooltip>
+
+        <Tooltip title="Export Excel (All)" arrow>
+          <IconButton
+            aria-label="Export Excel (All)"
+            onClick={onExportExcelAll}
+            size="large"
+          >
+            <IosShareIcon />
+          </IconButton>
+        </Tooltip>
+
+        <Tooltip title="Export Excel (Market Column)" arrow>
+          <IconButton
+            aria-label="Export Excel (Market Column)"
+            onClick={onOpenExportByMarket}
+            size="large"
+          >
+            <TableViewIcon />
+          </IconButton>
+        </Tooltip>
+
+        <Tooltip title="Export CSV" arrow>
+          <IconButton
+            aria-label="Export CSV"
+            onClick={onExportCSVAll}
+            size="large"
+          >
+            <FileDownloadIcon />
+          </IconButton>
+        </Tooltip>
+
+        {/* Hidden input for bulk upload */}
+        <input
+          type="file"
+          accept=".xlsx,.xls"
+          style={{ display: 'none' }}
+          ref={fileInputRef}
+          onChange={onFileChange}
+        />
+        <Tooltip title="Bulk Upload Excel" arrow>
+          <IconButton
+            aria-label="Bulk Upload Excel"
+            onClick={() => fileInputRef.current && fileInputRef.current.click()}
+            size="large"
+          >
+            <FileUploadIcon />
           </IconButton>
         </Tooltip>
 
@@ -260,7 +430,7 @@ function MarketBoardInner() {
       {addMarketColumnModal && (
         typeof document === "undefined"
           ? null
-          : require('react-dom').createPortal(
+          : ReactDOM.createPortal(
               <div className="kanban-modal-overlay" onClick={() => setAddMarketColumnModal(false)}>
                 <div className="kanban-modal-dialog" onClick={e => e.stopPropagation()}>
                   <button
@@ -296,6 +466,155 @@ function MarketBoardInner() {
                       <button className="btn" type="button" onClick={() => setAddMarketColumnModal(false)}>Cancel</button>
                     </div>
                   </form>
+                </div>
+              </div>,
+              document.body
+            )
+      )}
+
+      {/* Export by Market Column Modal */}
+      {exportByMarketState.showModal && (
+        typeof document === "undefined"
+          ? null
+          : ReactDOM.createPortal(
+              <div className="kanban-modal-overlay" onClick={() => setExportByMarketState({ showModal: false })}>
+                <div
+                  className="kanban-modal-dialog"
+                  onClick={e => e.stopPropagation()}
+                  style={{
+                    color: "#222",
+                    background: "var(--modal-bg, #fff6e0)",
+                    borderRadius: "17px",
+                  }}
+                >
+                  <button
+                    className="kanban-modal-close"
+                    onClick={() => setExportByMarketState({ showModal: false })}
+                    title="Close"
+                    style={{ color: "#222", background: "none", border: "none" }}
+                  >
+                    ×
+                  </button>
+                  <div style={{ fontWeight: 700, fontSize: '1.19em', marginBottom: 14, color: "#222" }}>
+                    Export Excel: Pick a market column to export
+                  </div>
+                  <div style={{ marginBottom: 12 }}>
+                    <div style={{ color: "#555" }}>Select a market column:</div>
+                    <div style={{ margin: "9px 0"}}>
+                      <select
+                        style={{
+                          width: "100%",
+                          padding: 6,
+                          fontSize: "1em",
+                          background: "var(--input-bg, #fff9e7)",
+                          color: "#292010",
+                          border: "1.5px solid var(--color-input-border, #ffb300)"
+                        }}
+                        onChange={e => onConfirmExportByMarket(e.target.value)}
+                        defaultValue=""
+                      >
+                        <option value="" disabled>Choose market column...</option>
+                        {(marketColumns || []).map((c, i) => (
+                          <option value={i} key={c.id}>{c.title}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </div>,
+              document.body
+            )
+      )}
+
+      {/* Bulk Upload: Select Kanban + Market columns */}
+      {bulkUploadState.showModal && (
+        typeof document === "undefined"
+          ? null
+          : ReactDOM.createPortal(
+              <div className="kanban-modal-overlay" onClick={() => setBulkUploadState(s => ({ ...s, showModal: false }))}>
+                <div
+                  className="kanban-modal-dialog"
+                  onClick={e => e.stopPropagation()}
+                  style={{
+                    color: "#222",
+                    background: "var(--modal-bg, #fff6e0)",
+                    borderRadius: "17px",
+                  }}
+                >
+                  <button
+                    className="kanban-modal-close"
+                    onClick={() => setBulkUploadState(s => ({ ...s, showModal: false }))}
+                    title="Close"
+                    style={{ color: "#222", background: "none", border: "none" }}
+                  >
+                    ×
+                  </button>
+                  <div style={{ fontWeight: 700, fontSize: '1.19em', marginBottom: 14, color: "#222" }}>
+                    Bulk Upload: Choose Kanban and Market columns
+                  </div>
+
+                  <div style={{ marginBottom: 12 }}>
+                    <div style={{ color: "#555", marginBottom: 6 }}>Select Kanban column:</div>
+                    <div style={{ margin: "9px 0"}}>
+                      <select
+                        style={{
+                          width: "100%",
+                          padding: 6,
+                          fontSize: "1em",
+                          background: "var(--input-bg, #fff9e7)",
+                          color: "#292010",
+                          border: "1.5px solid var(--color-input-border, #ffb300)"
+                        }}
+                        value={bulkUploadState.selectedKanbanIndex}
+                        onChange={e => setBulkUploadState(s => ({ ...s, selectedKanbanIndex: e.target.value }))}
+                      >
+                        <option value="" disabled>Choose Kanban column...</option>
+                        {(columns || []).map((c, i) => (
+                          <option value={String(i)} key={c.id}>{c.title}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div style={{ color: "#555", margin: "14px 0 6px 0" }}>Select Market column:</div>
+                    <div style={{ margin: "9px 0"}}>
+                      <select
+                        style={{
+                          width: "100%",
+                          padding: 6,
+                          fontSize: "1em",
+                          background: "var(--input-bg, #fff9e7)",
+                          color: "#292010",
+                          border: "1.5px solid var(--color-input-border, #ffb300)"
+                        }}
+                        value={bulkUploadState.selectedMarketIndex}
+                        onChange={e => setBulkUploadState(s => ({ ...s, selectedMarketIndex: e.target.value }))}
+                      >
+                        <option value="" disabled>Choose Market column...</option>
+                        {(marketColumns || []).map((mc, i) => (
+                          <option value={String(i)} key={mc.id}>{mc.title}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                    <button
+                      className="btn"
+                      type="button"
+                      onClick={onConfirmBulkUpload}
+                      disabled={bulkUploadState.selectedKanbanIndex === '' || bulkUploadState.selectedMarketIndex === ''}
+                      title="Import cards to the selected columns"
+                    >
+                      Import
+                    </button>
+                    <button className="btn" type="button" onClick={() => setBulkUploadState(s => ({ ...s, showModal: false }))}>
+                      Cancel
+                    </button>
+                  </div>
+
+                  <div style={{ color: "#a06700", fontSize: "0.96em", margin: "10px 0 0 1px" }}>
+                    Cards parsed from file: <strong>{bulkUploadState.entries.length}</strong>
+                  </div>
                 </div>
               </div>,
               document.body

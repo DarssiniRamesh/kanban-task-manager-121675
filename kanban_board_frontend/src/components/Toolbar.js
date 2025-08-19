@@ -1,7 +1,6 @@
 import React, { useRef } from 'react';
 import ReactDOM from 'react-dom';
 import { useKanban } from '../KanbanContext';
-import * as XLSX from 'xlsx';
 import { useExpandMode } from '../KanbanBoard';
 import { useFeedback } from '../contexts/FeedbackContext';
 import FullscreenIcon from '@mui/icons-material/Fullscreen';
@@ -13,130 +12,17 @@ import IosShareIcon from '@mui/icons-material/IosShare';
 import TableViewIcon from '@mui/icons-material/TableView';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import FileUploadIcon from '@mui/icons-material/FileUpload';
-
-/**
- * Build export rows from cards with a stable header order and value formatting.
- * Ensures:
- *  - due_date formatted as 'YYYY-MM-DD' or blank
- *  - estimated_effort is a number cell when present, otherwise blank
- *  - all string fields trimmed and default to '' when missing
- * Includes:
- *  - id field as the first column for accurate updates
- */
-function buildExportRows(cards, columns) {
-  if (!Array.isArray(cards)) return [];
-  // Sort by column position then by card position for a stable output
-  const colPos = new Map((columns || []).map(c => [c.id, c.position || 0]));
-  const sorted = [...cards].sort((a, b) => {
-    const ac = colPos.get(a.column_id) ?? 0;
-    const bc = colPos.get(b.column_id) ?? 0;
-    if (ac !== bc) return ac - bc;
-    return (a.position || 0) - (b.position || 0);
-  });
-
-  return sorted.map(c => {
-    const due = c.due_date ? String(c.due_date).slice(0, 10) : '';
-    const est = (c.estimated_effort === 0 || !!c.estimated_effort)
-      ? Number(c.estimated_effort)
-      : '';
-    return {
-      id: c.id || '',
-      feature: (c.feature || '').trim(),
-      description: (c.description || '').trim(),
-      assignee: (c.assignee || '').trim(),
-      notes: (c.notes || '').trim(),
-      priority: (c.priority || '').trim(),
-      status: (c.status || '').trim(),
-      due_date: due,
-      impact: (c.impact || '').trim(),
-      market_need: (c.market_need || '').trim(),
-      estimated_effort: est,
-      category: (c.category || '').trim(),
-    };
-  });
-}
-
-// Headers for blank template (no id for new entries)
-const TEMPLATE_HEADERS = [
-  'feature',
-  'description',
-  'assignee',
-  'notes',
-  'priority',
-  'status',
-  'due_date',
-  'impact',
-  'market_need',
-  'estimated_effort',
-  'category',
-];
-
-// Public export header order including id for update workflows
-const EXPORT_HEADERS = [
-  'id',
-  'feature',
-  'description',
-  'assignee',
-  'notes',
-  'priority',
-  'status',
-  'due_date',
-  'impact',
-  'market_need',
-  'estimated_effort',
-  'category',
-];
-
-/**
- * Download a blank Excel template with headers that match the board schema,
- * including the new fields.
- * Note: Template does not include 'id' since it's meant for new records.
- */
-function downloadExcelTemplate() {
-  const template = [
-    // Header row
-    TEMPLATE_HEADERS,
-    // Sample row (as guidance)
-    [
-      'Sample Task',
-      'Description here',
-      'Alice',
-      'Any extra notes for the team',
-      'High',
-      'To Do',
-      '2024-01-31',
-      'High Impact - Low Effort',
-      'Demand',
-      3,
-      'Feature',
-    ],
-  ];
-  const ws = XLSX.utils.aoa_to_sheet(template);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'KanbanCards');
-  XLSX.writeFile(wb, 'kanban_cards_template.xlsx');
-}
-
-/**
- * Create and download an XLSX workbook for the current board cards.
- */
-function downloadBoardExcel(rows) {
-  const ws = XLSX.utils.json_to_sheet(rows, { header: EXPORT_HEADERS });
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'KanbanCards');
-  XLSX.writeFile(wb, 'kanban_cards_export.xlsx');
-}
-
-/**
- * Create and download a CSV for the current board cards.
- */
-function downloadBoardCSV(rows) {
-  const ws = XLSX.utils.json_to_sheet(rows, { header: EXPORT_HEADERS });
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'KanbanCards');
-  // Write the first sheet as CSV
-  XLSX.writeFile(wb, 'kanban_cards_export.csv', { bookType: 'csv' });
-}
+import {
+  ALLOWED_CARD_FIELDS,
+  EXPORT_HEADERS, // exported for reference if needed
+  TEMPLATE_HEADERS, // exported for reference if needed
+  buildExportRows,
+  downloadExcelTemplate,
+  exportToExcel,
+  exportToCSV,
+  readExcelFile,
+  mapEntriesToCards
+} from '../utils/importExport';
 
 /**
  * PUBLIC_INTERFACE
@@ -197,30 +83,22 @@ function Toolbar({ onToggleFullscreen, isFullscreen }) {
   const handleExcelUpload = async (event) => {
     const file = event.target.files[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      const data = new Uint8Array(e.target.result);
-      const workbook = XLSX.read(data, { type: 'array' });
-      const sheet = workbook.Sheets[workbook.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
-
-      // Expecting [header, ...rows]
-      const [header, ...entries] = rows;
-      if (!header) {
+    try {
+      const { header, entries } = await readExcelFile(file);
+      if (!header || header.length === 0) {
         showToast("No header row found in Excel file.", "error");
         return;
       }
-
-      // Show modal for column selection, let user pick (use number select for now for minimal UI)
       setBulkUploadState({
         showModal: true,
         file,
-        excelRows: rows,
+        excelRows: [header, ...entries],
         header,
         entries,
       });
-    };
-    reader.readAsArrayBuffer(file);
+    } catch (err) {
+      showToast("Failed to parse Excel file: " + (err.message || String(err)), "error");
+    }
   };
 
   // Bulk upload confirmation
@@ -237,64 +115,12 @@ function Toolbar({ onToggleFullscreen, isFullscreen }) {
       return;
     }
 
-    // Fields allowed for import (Supabase schema). Updated to include new fields.
-    const allowedFields = [
-      'id',
-      'feature',
-      'description',
-      'assignee',
-      'notes',
-      'priority',
-      'status',
-      'due_date',
-      'impact',
-      'market_need',
-      'estimated_effort',
-      'category',
-    ];
-    const parsedRows = entries
-      .map(row => {
-        const obj = {};
-        // Normalize headers: trim, lowercase, convert spaces/dashes to underscores
-        const headerNorm = (header || []).map(h =>
-          String(h ?? '').trim().toLowerCase().replace(/[\s\-]+/g, '_')
-        );
-        headerNorm.forEach((k, i) => {
-          if (allowedFields.includes(k)) {
-            obj[k] = row[i];
-          }
-        });
-        // Parse due_date to yyyy-mm-dd if Excel numeric date
-        if (obj.due_date && typeof obj.due_date === 'number' && XLSX && XLSX.SSF && typeof XLSX.SSF.format === 'function') {
-          try {
-            obj.due_date = XLSX.SSF.format('yyyy-mm-dd', obj.due_date);
-          } catch {
-            // fallback: leave as-is
-          }
-        }
-        // estimated_effort to integer or null/empty if blank/non-numeric
-        if (obj.estimated_effort !== undefined) {
-          const raw = obj.estimated_effort;
-          const parsed = Number.parseInt(raw, 10);
-          obj.estimated_effort = Number.isNaN(parsed) ? null : parsed;
-        }
-        // Trim string values
-        Object.keys(obj).forEach(k => {
-          if (typeof obj[k] === 'string') obj[k] = obj[k].trim();
-        });
-        return obj;
-      })
-      .filter(card => card && typeof card.feature === 'string' && card.feature.trim().length > 0);
-
+    const parsedRows = mapEntriesToCards(header, entries, ALLOWED_CARD_FIELDS);
     if (parsedRows.length === 0) {
       showToast('No valid cards found in the file. Make sure "feature" column is filled.', "error");
       return;
     }
     try {
-      if (!parsedRows.every(c => c.feature)) {
-        // eslint-disable-next-line no-console
-        console.log("[Excel Bulk Upload] One or more mapped rows missing 'feature'");
-      }
       const result = await importCards(col.id, parsedRows, mCol.id);
       if (result && result.error) {
         showToast(`Import failed: ${result.error}`, "error");
@@ -310,11 +136,11 @@ function Toolbar({ onToggleFullscreen, isFullscreen }) {
   // Export handlers (all-cards)
   const handleExportExcel = () => {
     const rows = buildExportRows(cards || [], columns || []);
-    downloadBoardExcel(rows);
+    exportToExcel(rows);
   };
   const handleExportCSV = () => {
     const rows = buildExportRows(cards || [], columns || []);
-    downloadBoardCSV(rows);
+    exportToCSV(rows);
   };
 
   // Export by column - open modal
@@ -337,7 +163,7 @@ function Toolbar({ onToggleFullscreen, isFullscreen }) {
     }
     const subset = (cards || []).filter(c => c.column_id === col.id);
     const rows = buildExportRows(subset, columns || []);
-    downloadBoardExcel(rows);
+    exportToExcel(rows);
     showToast(`Exported ${rows.length} card(s) from "${col.title}"`, "success");
   };
 
@@ -359,7 +185,7 @@ function Toolbar({ onToggleFullscreen, isFullscreen }) {
         <Tooltip title="Download Excel Template" arrow>
           <IconButton
             aria-label="Download Excel Template"
-            onClick={downloadExcelTemplate}
+            onClick={() => downloadExcelTemplate()}
             size="large"
           >
             <GridOnIcon />
