@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom';
 import { useKanban } from '../KanbanContext';
 import { useFeedback } from '../KanbanBoard';
 import DeleteOutline from '@mui/icons-material/DeleteOutline';
+import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import AssigneeAutocomplete from './AssigneeAutocomplete';
 import { addKnownAssignee } from '../utils/assignees';
 
@@ -110,6 +111,7 @@ function KanbanCard({ card, isCompact = false }) {
       market_need: card.market_need,
       estimated_effort: card.estimated_effort ?? '',
       category: card.category,
+      reference_link: card.reference_link || '',
     });
     setModalOpen(true);
     setEdit(false);
@@ -186,6 +188,44 @@ function KanbanCard({ card, isCompact = false }) {
         onClick={openModal}
         style={{ cursor: "pointer" }}
       >
+        {card.reference_link && (
+          <button
+            className="kanban-card-linkbtn"
+            title="Open reference link"
+            aria-label="Open reference link in new tab"
+            onClick={(e) => {
+              e.stopPropagation();
+              let url = String(card.reference_link || '').trim();
+              if (!url) return;
+              if (!/^https?:\/\//i.test(url)) {
+                url = 'https://' + url;
+              }
+              try {
+                window.open(url, '_blank', 'noopener,noreferrer');
+              } catch {
+                window.open(url, '_blank');
+              }
+            }}
+            style={{
+              position: 'absolute',
+              top: 6,
+              right: 6,
+              background: '#fff',
+              border: '1px solid var(--color-border)',
+              color: 'var(--color-accent-strong)',
+              borderRadius: 7,
+              padding: '3px 6px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              lineHeight: 0,
+              boxShadow: '0 1px 6px rgba(0,0,0,0.06)',
+              cursor: 'pointer'
+            }}
+          >
+            <OpenInNewIcon fontSize="small" />
+          </button>
+        )}
         <div className="kanban-card-prominent-header" style={{ borderBottom: isCompact ? 'none' : undefined, marginBottom: isCompact ? 6 : 11, paddingBottom: isCompact ? 0 : '0.5em' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             {/* Status color indicator dot */}
@@ -240,6 +280,29 @@ function KanbanCard({ card, isCompact = false }) {
                 <div className="kanban-detail-prominent-header">
                   <div className="kanban-detail-modal-title-row">
                     <span className="kanban-detail-title-prominent">{card.feature}</span>
+                    {card.reference_link && (
+                      <button
+                        className="kanban-card-editbtn"
+                        title="Open reference link"
+                        aria-label="Open reference link in new tab"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          let url = String(card.reference_link || '').trim();
+                          if (!url) return;
+                          if (!/^https?:\/\//i.test(url)) {
+                            url = 'https://' + url;
+                          }
+                          try {
+                            window.open(url, '_blank', 'noopener,noreferrer');
+                          } catch {
+                            window.open(url, '_blank');
+                          }
+                        }}
+                        style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', lineHeight: 0 }}
+                      >
+                        <OpenInNewIcon fontSize="small" />
+                      </button>
+                    )}
                     <button className="kanban-card-editbtn" onClick={() => setEdit(true)} title="Edit">✎</button>
                     <button
                       className="kanban-card-delbtn"
@@ -324,6 +387,15 @@ function KanbanCard({ card, isCompact = false }) {
                     <option value="On Hold">On Hold</option>
                   </select>
                   <input name="due_date" type="date" value={fields.due_date||""} onChange={handleChange}/>
+
+                  <input
+                    name="reference_link"
+                    type="url"
+                    value={fields.reference_link || ""}
+                    onChange={handleChange}
+                    placeholder="Reference link (https://...)"
+                    aria-label="Reference link"
+                  />
 
                   {/* New fields */}
                   <select name="impact" value={fields.impact || ""} onChange={handleChange} aria-label="Impact">

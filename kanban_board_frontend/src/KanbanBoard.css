@@ -227,6 +227,7 @@
   box-shadow: 0 1px 5px 0 rgba(26,33,61,0.12);
   border: 1px solid #EAE5E0;
   border-left: 4px solid transparent;
+  position: relative;
   color: var(--color-card-text-dark, #1A1A1A);
   transition: box-shadow .18s, background .19s, color .19s, border-radius .13s, padding .13s, border-color .15s;
   cursor: grab;
