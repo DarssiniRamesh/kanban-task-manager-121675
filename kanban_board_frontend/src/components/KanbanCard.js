@@ -56,9 +56,11 @@ function Modal({ children, onClose }) {
  * Props:
  *  - card: Object representing the card fields
  *  - isCompact: boolean controlling inline compact rendering
+ *  - showMarketColumn: when true, show the Market column assignment pill on the card
+ *  - showProductColumn: when true, show the Product/Kanban column assignment pill on the card
  */
-function KanbanCard({ card, isCompact = false }) {
-  const { updateCard, deleteCard } = useKanban();
+function KanbanCard({ card, isCompact = false, showMarketColumn = false, showProductColumn = false }) {
+  const { updateCard, deleteCard, columns = [], marketColumns = [] } = useKanban();
   const [edit, setEdit] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [fields, setFields] = useState({
@@ -251,6 +253,17 @@ function KanbanCard({ card, isCompact = false }) {
           {!isCompact && <Pill value={card.status} type="status" />}
           <Pill value={card.priority} type="priority" />
           <Pill value={card.assignee} type="assignee" />
+          {/* Cross-context column info */}
+          {showProductColumn && card.column_id && (() => {
+            const map = new Map((columns || []).map(c => [c.id, c.title]));
+            const name = map.get(card.column_id);
+            return name ? <Pill value={`Product: ${name}`} type="productcolumn" /> : null;
+          })()}
+          {showMarketColumn && card.market_kanban_column_id && (() => {
+            const map = new Map((marketColumns || []).map(c => [c.id, c.title]));
+            const name = map.get(card.market_kanban_column_id);
+            return name ? <Pill value={`Market: ${name}`} type="marketcolumn" /> : null;
+          })()}
           {/* New visible fields */}
           <Pill value={card.category} type="category" />
           <Pill value={card.impact} type="impact" />

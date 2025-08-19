@@ -261,16 +261,17 @@ export function KanbanProvider({ children }) {
   // PUBLIC_INTERFACE
   /**
    * Import mixed set of rows: updates existing cards by ID (only changed fields) and
-   * appends new cards to the specified column. Prevents duplicates both within the
-   * uploaded file and against existing cards in the target column (using a signature
-   * of feature|assignee|description).
+   * appends new cards to the specified Product (Kanban) column. Prevents duplicates
+   * both within the uploaded file and against existing cards in the target column
+   * (using a signature of feature|assignee|description).
    *
-   * @param {number|string} column_id - Column to append new cards into.
+   * @param {number|string} column_id - Product/Kanban column to append new cards into.
    * @param {Array<Object>} rows - Parsed rows from Excel/CSV with optional 'id' and card fields.
+   * @param {number|string} [market_column_id] - Market column to assign to newly inserted cards.
    * @returns {{updatedCount?:number, insertedCount?:number, skippedDuplicates?:number, error?:string}}
    */
   // PUBLIC_INTERFACE
-  const importCards = async (column_id, rows) => {
+  const importCards = async (column_id, rows, market_column_id) => {
     try {
       const allowedFields = [
         'feature',
@@ -383,6 +384,7 @@ export function KanbanProvider({ children }) {
           ...card,
           column_id,
           position: maxPos + idx + 1,
+          ...(market_column_id ? { market_kanban_column_id: market_column_id } : {}),
         }));
         const { error: insertError } = await supabase.from('kanban_cards').insert(payload);
         if (insertError) {

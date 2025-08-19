@@ -147,7 +147,7 @@ function downloadBoardCSV(rows) {
  *  - isFullscreen?: boolean to indicate current fullscreen state
  */
 function Toolbar({ onToggleFullscreen, isFullscreen }) {
-  const { addColumn, importCards, columns, cards } = useKanban();
+  const { addColumn, importCards, columns, cards, marketColumns } = useKanban();
   const inputRef = useRef();
   const { showToast } = useFeedback();
   const { isCompact, setIsCompact } = useExpandMode();
@@ -163,6 +163,8 @@ function Toolbar({ onToggleFullscreen, isFullscreen }) {
     excelRows: [],
     header: [],
     entries: [],
+    selectedKanbanIndex: '',
+    selectedMarketIndex: '',
   });
 
   // Modal state for Export by Column
@@ -218,14 +220,16 @@ function Toolbar({ onToggleFullscreen, isFullscreen }) {
   };
 
   // Bulk upload confirmation
-  const handleConfirmBulkUpload = async (colIdx) => {
+  const handleConfirmBulkUpload = async (colIdx, marketIdx) => {
     setBulkUploadState(b => ({ ...b, showModal: false }));
-    inputRef.current.value = '';
+    if (inputRef.current) inputRef.current.value = '';
     const { header, entries } = bulkUploadState;
     const idx = Number(colIdx);
+    const mIdx = Number(marketIdx);
     const col = columns[idx];
-    if (!col) {
-      showToast("Invalid column selection.", "error");
+    const mCol = (marketColumns || [])[mIdx];
+    if (!col || !mCol) {
+      showToast("Please select both a Kanban column and a Market column.", "error");
       return;
     }
 
@@ -278,7 +282,7 @@ function Toolbar({ onToggleFullscreen, isFullscreen }) {
         // eslint-disable-next-line no-console
         console.log("[Excel Bulk Upload] One or more mapped rows missing 'feature'");
       }
-      const result = await importCards(col.id, parsedRows);
+      const result = await importCards(col.id, parsedRows, mCol.id);
       if (result && result.error) {
         showToast(`Import failed: ${result.error}`, "error");
       } else {
@@ -450,7 +454,7 @@ function Toolbar({ onToggleFullscreen, isFullscreen }) {
               document.body
             )
       )}
-      {/* Bulk Upload Select Column Modal */}
+      {/* Bulk Upload Select Columns Modal */}
       {bulkUploadState.showModal && (
         typeof document === "undefined"
           ? null
@@ -474,10 +478,10 @@ function Toolbar({ onToggleFullscreen, isFullscreen }) {
                     ×
                   </button>
                   <div style={{ fontWeight: 700, fontSize: '1.19em', marginBottom: 14, color: "#222" }}>
-                    Bulk Upload: Pick a column for these cards
+                    Bulk Upload: Choose Kanban and Market columns
                   </div>
                   <div style={{ marginBottom: 12 }}>
-                    <div style={{ color: "#555" }}>Select a column:</div>
+                    <div style={{ color: "#555", marginBottom: 6 }}>Select Kanban column:</div>
                     <div style={{ margin: "9px 0"}}>
                       <select
                         style={{
@@ -488,17 +492,54 @@ function Toolbar({ onToggleFullscreen, isFullscreen }) {
                           color: "#292010",
                           border: "1.5px solid var(--color-input-border, #ffb300)"
                         }}
-                        onChange={e => handleConfirmBulkUpload(e.target.value)}
-                        defaultValue=""
+                        value={bulkUploadState.selectedKanbanIndex}
+                        onChange={e => setBulkUploadState(s => ({ ...s, selectedKanbanIndex: e.target.value }))}
                       >
-                        <option value="" disabled>Choose column...</option>
-                        {columns.map((c, i) => (
-                          <option value={i} key={c.id}>{c.title}</option>
+                        <option value="" disabled>Choose Kanban column...</option>
+                        {(columns || []).map((c, i) => (
+                          <option value={String(i)} key={c.id}>{c.title}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div style={{ color: "#555", margin: "14px 0 6px 0" }}>Select Market column:</div>
+                    <div style={{ margin: "9px 0"}}>
+                      <select
+                        style={{
+                          width: "100%",
+                          padding: 6,
+                          fontSize: "1em",
+                          background: "var(--input-bg, #fff9e7)",
+                          color: "#292010",
+                          border: "1.5px solid var(--color-input-border, #ffb300)"
+                        }}
+                        value={bulkUploadState.selectedMarketIndex}
+                        onChange={e => setBulkUploadState(s => ({ ...s, selectedMarketIndex: e.target.value }))}
+                      >
+                        <option value="" disabled>Choose Market column...</option>
+                        {(marketColumns || []).map((mc, i) => (
+                          <option value={String(i)} key={mc.id}>{mc.title}</option>
                         ))}
                       </select>
                     </div>
                   </div>
-                  <div style={{ color: "#a06700", fontSize: "0.96em", margin: "7px 0 0 1px" }}>
+
+                  <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                    <button
+                      className="btn"
+                      type="button"
+                      onClick={() => handleConfirmBulkUpload(bulkUploadState.selectedKanbanIndex, bulkUploadState.selectedMarketIndex)}
+                      disabled={bulkUploadState.selectedKanbanIndex === '' || bulkUploadState.selectedMarketIndex === ''}
+                      title="Import cards to the selected columns"
+                    >
+                      Import
+                    </button>
+                    <button className="btn" type="button" onClick={() => setBulkUploadState(s => ({ ...s, showModal: false }))}>
+                      Cancel
+                    </button>
+                  </div>
+
+                  <div style={{ color: "#a06700", fontSize: "0.96em", margin: "10px 0 0 1px" }}>
                     Cards parsed from file: <strong>{bulkUploadState.entries.length}</strong>
                   </div>
                 </div>

@@ -13,7 +13,7 @@ import { addKnownAssignee } from '../utils/assignees';
  */
 function CardList({ column, cards: colCardsProp, isCompact = false }) {
   // colCards: sorted - passed in or computed
-  const { cards, addCard, updateCard } = useKanban();
+  const { cards, addCard, updateCard, columns, marketColumns } = useKanban();
   const [adding, setAdding] = useState(false);
 
   // Prefer passed colCards (sorted), but fallback for tests:
@@ -41,6 +41,15 @@ function CardList({ column, cards: colCardsProp, isCompact = false }) {
     e.preventDefault();
     const feature = e.target.feature.value.trim();
     if (!feature) return;
+
+    // Enforce selection of both Kanban and Market columns
+    const selectedKanbanId = e.target.kanban_column_id.value;
+    const selectedMarketId = e.target.market_kanban_column_id.value;
+    if (!selectedKanbanId || !selectedMarketId) {
+      // Basic guard; HTML required attributes should already prevent this
+      return;
+    }
+
     const description = e.target.description.value;
     const assignee = e.target.assignee.value;
     const notes = e.target.notes.value;
@@ -57,7 +66,8 @@ function CardList({ column, cards: colCardsProp, isCompact = false }) {
     const estimated_effort =
       estimated_effort_raw === '' ? null : Number.isNaN(parseInt(estimated_effort_raw, 10)) ? null : parseInt(estimated_effort_raw, 10);
 
-    await addCard(column.id, {
+    // Pass market_kanban_column_id and selected kanban column id explicitly
+    await addCard(Number(selectedKanbanId), {
       feature,
       description,
       assignee,
@@ -69,6 +79,7 @@ function CardList({ column, cards: colCardsProp, isCompact = false }) {
       market_need,
       estimated_effort,
       category,
+      market_kanban_column_id: Number(selectedMarketId),
     });
     setAdding(false);
     e.target.reset();
@@ -101,6 +112,34 @@ function CardList({ column, cards: colCardsProp, isCompact = false }) {
         }}>
           <input name="feature" placeholder="Feature/Title" required autoComplete="off"/>
           <div className="kanban-form-grid">
+            {/* Required: Select Kanban and Market columns for the new card */}
+            <select
+              name="kanban_column_id"
+              defaultValue={String(column.id)}
+              required
+              className="styled-select"
+              aria-label="Kanban Column"
+              title="Select Kanban column"
+            >
+              <option value="" disabled>Select Kanban Column</option>
+              {(columns || []).map(c => (
+                <option key={c.id} value={String(c.id)}>{c.title}</option>
+              ))}
+            </select>
+            <select
+              name="market_kanban_column_id"
+              defaultValue=""
+              required
+              className="styled-select"
+              aria-label="Market Column"
+              title="Select Market column"
+            >
+              <option value="" disabled>Select Market Column</option>
+              {(marketColumns || []).map(mc => (
+                <option key={mc.id} value={String(mc.id)}>{mc.title}</option>
+              ))}
+            </select>
+
             {/* Assignee with autocomplete suggestions */}
             <AssigneeAutocomplete
               name="assignee"
@@ -279,7 +318,7 @@ function DnDKanbanCard({ card, index, column, colCards, isCompact = false }) {
         transition: 'background .15s, border .15s, opacity .14s, box-shadow .16s'
       }}
     >
-      <KanbanCard card={card} isCompact={isCompact} />
+      <KanbanCard card={card} isCompact={isCompact} showMarketColumn />
     </div>
   );
 }

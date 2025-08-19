@@ -630,7 +630,7 @@ function DnDMarketCard({ card, index, column, colCards, isCompact = false }) {
         transition: 'background .15s, border .15s, opacity .14s, box-shadow .16s'
       }}
     >
-      <KanbanCard card={card} isCompact={isCompact} />
+      <KanbanCard card={card} isCompact={isCompact} showProductColumn />
     </div>
   );
 }
