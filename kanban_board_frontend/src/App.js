@@ -1,6 +1,7 @@
 import React from 'react';
 import './App.css';
 import KanbanBoard from './KanbanBoard';
+import MarketBoard from './MarketBoard';
 import { ThemeProvider, createTheme, CssBaseline } from '@mui/material';
 import { BrowserRouter as Router, Routes, Route, NavLink, Navigate } from 'react-router-dom';
 import { KanbanProvider } from './KanbanContext';
@@ -110,6 +111,12 @@ function App() {
                       Product
                     </NavLink>
                     <NavLink
+                      to="/market"
+                      className={({ isActive }) => "nav-link" + (isActive ? " active" : "")}
+                    >
+                      Market
+                    </NavLink>
+                    <NavLink
                       to="/summary"
                       className={({ isActive }) => "nav-link" + (isActive ? " active" : "")}
                     >
@@ -124,6 +131,7 @@ function App() {
               <Routes>
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/product" element={<KanbanBoard />} />
+                <Route path="/market" element={<MarketBoard />} />
                 <Route path="/summary" element={<Summary />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>

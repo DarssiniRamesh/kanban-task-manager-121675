@@ -32,8 +32,8 @@ function getUniqueFieldValues(cards, field) {
  * Adds filtering for: assignees, priorities, statuses, columns, due date range,
  * impact, market_need, category, and estimated_effort (range).
  */
-export default function FilterPanel({ onFiltersChange }) {
-  const { cards, columns } = useKanban();
+export default function FilterPanel({ onFiltersChange, useMarketColumns = false }) {
+  const { cards, columns, marketColumns } = useKanban();
   const theme = useTheme();
 
   // Filter state
@@ -70,8 +70,11 @@ export default function FilterPanel({ onFiltersChange }) {
     [cards]
   );
   const columnOptions = useMemo(
-    () => columns.map((col) => ({ id: col.id, title: col.title })),
-    [columns]
+    () => {
+      const src = useMarketColumns ? (marketColumns || []) : (columns || []);
+      return src.map((col) => ({ id: col.id, title: col.title }));
+    },
+    [columns, marketColumns, useMarketColumns]
   );
 
   // Fixed option sets (accurate values) for new fields
@@ -323,7 +326,7 @@ export default function FilterPanel({ onFiltersChange }) {
             {...params}
             variant="outlined"
             size="small"
-            placeholder="Columns"
+            placeholder={useMarketColumns ? "Market Columns" : "Columns"}
             InputProps={{
               ...params.InputProps,
               startAdornment: (

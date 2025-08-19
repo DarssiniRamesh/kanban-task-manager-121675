@@ -14,6 +14,7 @@ export function KanbanProvider({ children }) {
   const supabase = getSupabaseClient();
 
   const [columns, setColumns] = useState([]);
+  const [marketColumns, setMarketColumns] = useState([]);
   const [cards, setCards] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -33,9 +34,15 @@ export function KanbanProvider({ children }) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'kanban_cards' }, fetchAll)
       .subscribe();
 
+    const marketColumnsSub = supabase
+      .channel('market-columns-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'market_kanban_columns' }, fetchAll)
+      .subscribe();
+
     return () => {
       supabase.removeChannel(columnsSub);
       supabase.removeChannel(cardsSub);
+      supabase.removeChannel(marketColumnsSub);
     };
     // eslint-disable-next-line
   }, []); // One subscription per mount
@@ -59,7 +66,15 @@ export function KanbanProvider({ children }) {
 
       if (cardErr) throw cardErr;
 
+      const { data: marketColumnData, error: mkErr } = await supabase
+        .from('market_kanban_columns')
+        .select('*')
+        .order('position', { ascending: true });
+
+      if (mkErr) throw mkErr;
+
       setColumns(columnData || []);
+      setMarketColumns(marketColumnData || []);
       setCards(cardData || []);
     } catch (e) {
       setError(e.message || 'Supabase error');
@@ -98,6 +113,39 @@ export function KanbanProvider({ children }) {
     });
     const updates = deduped.map(({ id, position }) =>
       supabase.from('kanban_columns').update({ position }).eq('id', id)
+    );
+    await Promise.all(updates);
+    await fetchAll();
+  };
+
+  // Market Column CRUD
+  const addMarketColumn = async (title) => {
+    const newPos = marketColumns.length ? Math.max(...marketColumns.map(c => c.position)) + 1 : 1;
+    let { error } = await supabase.from('market_kanban_columns').insert({ title, position: newPos });
+    await fetchAll();
+    return error;
+  };
+  const updateMarketColumn = async (id, updates) => {
+    let { error } = await supabase.from('market_kanban_columns').update(updates).eq('id', id);
+    await fetchAll();
+    return error;
+  };
+  const deleteMarketColumn = async (id) => {
+    let { error } = await supabase.from('market_kanban_columns').delete().eq('id', id);
+    await fetchAll();
+    return error;
+  };
+  const reorderMarketColumns = async (orderedList) => {
+    const deduped = [];
+    const seen = {};
+    (orderedList || []).forEach((item, i) => {
+      if (item.id && !seen[item.id]) {
+        deduped.push({ id: item.id, position: i + 1 });
+        seen[item.id] = true;
+      }
+    });
+    const updates = deduped.map(({ id, position }) =>
+      supabase.from('market_kanban_columns').update({ position }).eq('id', id)
     );
     await Promise.all(updates);
     await fetchAll();
@@ -362,6 +410,7 @@ export function KanbanProvider({ children }) {
     <KanbanContext.Provider
       value={{
         columns,
+        marketColumns,
         cards,
         isLoading,
         error,
@@ -370,6 +419,10 @@ export function KanbanProvider({ children }) {
         updateColumn,
         deleteColumn,
         reorderColumns,
+        addMarketColumn,
+        updateMarketColumn,
+        deleteMarketColumn,
+        reorderMarketColumns,
         addCard,
         updateCard,
         deleteCard,
