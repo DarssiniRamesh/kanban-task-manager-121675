@@ -1,4 +1,4 @@
-import React, { useState, createContext, useContext } from 'react';
+import React, { useState } from 'react';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { useDrop, useDrag } from 'react-dnd';
@@ -12,12 +12,7 @@ import FilterPanel from './components/FilterPanel';
 import ToastModal from './components/ToastModal';
 import KanbanCard from './components/KanbanCard';
 import './KanbanBoard.css';
-
-/* Feedback/toast context for global error/success UI (mirrors KanbanBoard) */
-const FeedbackContext = createContext();
-export function useMarketFeedback() {
-  return useContext(FeedbackContext);
-}
+import { FeedbackContext, useFeedback } from './contexts/FeedbackContext';
 
 /* PUBLIC_INTERFACE
  * MarketBoard
@@ -37,7 +32,7 @@ function MarketBoardInner() {
     addMarketColumn,
   } = useKanban();
 
-  const { showToast } = useMarketFeedback();
+  const { showToast } = useFeedback();
 
   // Fullscreen state for Market page (persisted separately)
   const [fullScreen, setFullScreen] = React.useState(() => {
@@ -345,7 +340,7 @@ function MarketBoardInner() {
 // MarketColumn renders header and MarketCardList
 function MarketColumn({ column, cards, isCompact }) {
   const { updateMarketColumn, deleteMarketColumn } = useKanban();
-  const { showToast } = useMarketFeedback();
+  const { showToast } = useFeedback();
 
   const [editing, setEditing] = React.useState(false);
   const [titleInput, setTitleInput] = React.useState(column.title);
@@ -530,7 +525,7 @@ function MarketColumn({ column, cards, isCompact }) {
  */
 function MarketCardList({ column, cards, isCompact = false }) {
   const { updateCard } = useKanban();
-  const { showToast } = useMarketFeedback();
+  const { showToast } = useFeedback();
 
   // Drop into an empty market column
   const [{ isOver, canDrop }, drop] = useDrop({
@@ -581,7 +576,7 @@ function MarketCardList({ column, cards, isCompact = false }) {
 // DnD wrapper for Market cards. Drag item carries market_kanban_column_id for comparison.
 function DnDMarketCard({ card, index, column, colCards, isCompact = false }) {
   const { updateCard } = useKanban();
-  const { showToast } = useMarketFeedback();
+  const { showToast } = useFeedback();
 
   const [{ isDragging }, drag] = useDrag({
     type: CARD_TYPE,

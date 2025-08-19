@@ -3,7 +3,7 @@ import KanbanCard from './KanbanCard';
 import { useKanban } from '../KanbanContext';
 import { useDrop, useDrag } from 'react-dnd';
 import { CARD_TYPE } from './dndTypes';
-import { useFeedback } from '../KanbanBoard';
+import { useFeedback } from '../contexts/FeedbackContext';
 import AssigneeAutocomplete from './AssigneeAutocomplete';
 import { addKnownAssignee } from '../utils/assignees';
 

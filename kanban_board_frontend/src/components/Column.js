@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom';
 import { useKanban } from '../KanbanContext';
 import CardList from './CardList';
 import { CARD_TYPE } from './dndTypes';
+import { useFeedback } from '../contexts/FeedbackContext';
 
 /**
  * Column represents a Kanban column (no drag logic here; handled by board parent for DnD).
@@ -19,7 +20,7 @@ function Column({ column, index, isDragging, isOver, filteredCards, isCompact })
   // Modal state: delete/rename
   const [modal, setModal] = React.useState({ type: null });
 
-  const { showToast } = require("../KanbanBoard"); // Import here to avoid circular deps for Feedback
+  const { showToast } = useFeedback();
 
   // Inline editing state for column title
   const [editing, setEditing] = React.useState(false);

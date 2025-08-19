@@ -11,14 +11,9 @@ import { useKanban } from './KanbanContext';
 import { useDrop, useDrag } from 'react-dnd';
 import FullscreenExitIcon from '@mui/icons-material/FullscreenExit';
 import { Tooltip } from '@mui/material';
+import { FeedbackContext, useFeedback } from './contexts/FeedbackContext';
 
 import './KanbanBoard.css';
-
-// Feedback/toast context for global error/success UI
-const FeedbackContext = createContext();
-export function useFeedback() {
-  return useContext(FeedbackContext);
-}
 
 // Global expand/shorten context for cards
 const ExpandModeContext = createContext({ isCompact: false, setIsCompact: () => {} });

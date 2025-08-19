@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import ReactDOM from 'react-dom';
 import { useKanban } from '../KanbanContext';
-import { useFeedback } from '../KanbanBoard';
+import { useFeedback } from '../contexts/FeedbackContext';
 import DeleteOutline from '@mui/icons-material/DeleteOutline';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import AssigneeAutocomplete from './AssigneeAutocomplete';
@@ -141,6 +141,7 @@ function KanbanCard({ card, isCompact = false }) {
   // PUBLIC_INTERFACE
   const [deleteError, setDeleteError] = useState(null);
   const [deletionConfirm, setDeletionConfirm] = useState(false);
+  // Obtain showToast from context (useFeedback returns a no-op when no provider)
   const { showToast } = useFeedback();
 
   const handleDelete = async () => {
