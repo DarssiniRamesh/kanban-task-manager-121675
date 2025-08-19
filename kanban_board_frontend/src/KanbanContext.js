@@ -85,8 +85,16 @@ export function KanbanProvider({ children }) {
 
   // Column CRUD
   const addColumn = async (title) => {
-    const newPos = columns.length ? Math.max(...columns.map(c=>c.position)) + 1 : 1;
-    let { error } = await supabase.from('kanban_columns').insert({ title, position: newPos });
+    // Compute next position safely, ignoring null/undefined/non-numeric values
+    const positions = (columns || [])
+      .map(c => Number(c.position))
+      .filter(n => Number.isFinite(n));
+    const newPos = positions.length > 0 ? Math.max(...positions) + 1 : 1;
+
+    const { error } = await supabase.from('kanban_columns').insert({ title, position: newPos });
+    if (error) {
+      setError(error.message || 'Failed to add column');
+    }
     await fetchAll();
     return error;
   };
@@ -120,8 +128,16 @@ export function KanbanProvider({ children }) {
 
   // Market Column CRUD
   const addMarketColumn = async (title) => {
-    const newPos = marketColumns.length ? Math.max(...marketColumns.map(c => c.position)) + 1 : 1;
-    let { error } = await supabase.from('market_kanban_columns').insert({ title, position: newPos });
+    // Compute next market-column position safely
+    const positions = (marketColumns || [])
+      .map(c => Number(c.position))
+      .filter(n => Number.isFinite(n));
+    const newPos = positions.length > 0 ? Math.max(...positions) + 1 : 1;
+
+    const { error } = await supabase.from('market_kanban_columns').insert({ title, position: newPos });
+    if (error) {
+      setError(error.message || 'Failed to add market column');
+    }
     await fetchAll();
     return error;
   };
@@ -155,9 +171,19 @@ export function KanbanProvider({ children }) {
   const addCard = async (column_id, cardFields) => {
     // cardFields: {feature, description...}
     const filtered = { ...cardFields, column_id };
-    const maxPos = Math.max(0, ...cards.filter(c=>c.column_id === column_id).map(c=>c.position));
+
+    // Find safe max position in the target column
+    const positions = (cards || [])
+      .filter(c => c.column_id === column_id)
+      .map(c => Number(c.position))
+      .filter(n => Number.isFinite(n));
+    const maxPos = positions.length > 0 ? Math.max(...positions) : 0;
+
     filtered.position = maxPos + 1;
-    let { error } = await supabase.from('kanban_cards').insert(filtered);
+    const { error } = await supabase.from('kanban_cards').insert(filtered);
+    if (error) {
+      setError(error.message || 'Failed to add card');
+    }
     await fetchAll();
     return error;
   };

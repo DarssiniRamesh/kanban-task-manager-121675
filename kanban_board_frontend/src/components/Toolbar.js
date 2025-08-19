@@ -184,7 +184,11 @@ function Toolbar({ onToggleFullscreen, isFullscreen }) {
       showToast("Column title cannot be empty.", "error");
       return;
     }
-    await addColumn(newColTitle.trim());
+    const err = await addColumn(newColTitle.trim());
+    if (err) {
+      showToast("Failed to add column: " + (err.message || String(err)), "error");
+      return;
+    }
     setAddColumnModal(false);
     showToast("Column added!", "success");
   };
@@ -251,14 +255,22 @@ function Toolbar({ onToggleFullscreen, isFullscreen }) {
     const parsedRows = entries
       .map(row => {
         const obj = {};
-        header.forEach((k, i) => {
+        // Normalize headers: trim, lowercase, convert spaces/dashes to underscores
+        const headerNorm = (header || []).map(h =>
+          String(h ?? '').trim().toLowerCase().replace(/[\s\-]+/g, '_')
+        );
+        headerNorm.forEach((k, i) => {
           if (allowedFields.includes(k)) {
             obj[k] = row[i];
           }
         });
-        // Parse due_date to yyyy-mm-dd format if present and is numeric (Excel date)
-        if (obj.due_date && typeof obj.due_date === 'number') {
-          obj.due_date = require('xlsx').SSF.format('yyyy-mm-dd', obj.due_date);
+        // Parse due_date to yyyy-mm-dd if Excel numeric date
+        if (obj.due_date && typeof obj.due_date === 'number' && XLSX && XLSX.SSF && typeof XLSX.SSF.format === 'function') {
+          try {
+            obj.due_date = XLSX.SSF.format('yyyy-mm-dd', obj.due_date);
+          } catch {
+            // fallback: leave as-is
+          }
         }
         // estimated_effort to integer or null/empty if blank/non-numeric
         if (obj.estimated_effort !== undefined) {
@@ -266,6 +278,7 @@ function Toolbar({ onToggleFullscreen, isFullscreen }) {
           const parsed = Number.parseInt(raw, 10);
           obj.estimated_effort = Number.isNaN(parsed) ? null : parsed;
         }
+        // Trim string values
         Object.keys(obj).forEach(k => {
           if (typeof obj[k] === 'string') obj[k] = obj[k].trim();
         });
