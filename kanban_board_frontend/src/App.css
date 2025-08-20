@@ -31,7 +31,7 @@
   --color-card-info: #FFF6F1;       /* To Do: very pale warm tint */
   --color-card-progress: #FFF3EB;   /* In Progress: pale warm orange tint */
   --color-card-done: #F4FBF7;       /* Done: very pale green */
-  --color-card-review: #FFF9E8;     /* Review: pale soft yellow */
+  --color-card-review: #F8EFE7;     /* Review: pale soft brown (accessible on light) */
   --color-card-hold: #FFF3F1;       /* On Hold: pale soft red */
   /* Used as accent colors (e.g., borders), not as heavy backgrounds */
   --color-card-critical: #E0523C;   /* critical accent */
@@ -45,7 +45,7 @@
   --status-todo: #E53935;        /* Pending (To Do) */
   --status-inprogress: #FFD600;  /* In Progress */
   --status-done: #43A047;        /* Done */
-  --status-review: #FF9800;      /* Review */
+  --status-review: #8B5E3C;      /* Review (brown accent) */
   --status-hold: #D7827F;        /* unchanged */
 
   --priority-critical: #D14D3F;
@@ -802,7 +802,7 @@ body.summary-fullscreen .summary-page {
   --summary-card-done: #E9F7EF;         /* more vivid light green */
   --summary-card-inprogress: #FFFBE6;   /* softer, lighter yellow for In Progress */
   --summary-card-todo: #FFE3E3;         /* more vivid light red (Pending/To Do) */
-  --summary-card-review: #FFE7C2;       /* vivid light orange for Review */
+  --summary-card-review: #F4E9E0;       /* light, accessible brown for Review */
   --summary-card-hold: #FFE7E1;         /* soft red for On Hold */
   --summary-card-border: #E3D6CC;       /* subtle card border */
 }
@@ -823,8 +823,8 @@ body.summary-fullscreen .summary-page {
 }
 .summary-col-card.status-review {
   background: var(--summary-card-review) !important;
-  border-color: #FFB46B; /* orange accent */
-  color: #4a2a00;        /* ensure readable text on orange tint */
+  border-color: #B08968; /* brown accent */
+  color: #3b2a1f;        /* readable dark brown text on light brown */
 }
 .summary-col-card.status-hold {
   background: var(--summary-card-hold) !important;
