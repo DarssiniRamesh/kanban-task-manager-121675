@@ -40,11 +40,13 @@
   --color-card-low: #EBD6C9;        /* low accent (sparingly used) */
 
   /* Status/priority border accents (subtle) */
-  --status-todo: #A0A4AE;
-  --status-inprogress: #E1986E;
-  --status-done: #7FBF9B;
-  --status-review: #D3A94E;
-  --status-hold: #D7827F;
+  /* Status accents aligned with vivid but not dark palette */
+  /* Pending (To Do) -> clearer red, In Progress -> brighter yellow, Done -> vivid green, Review -> distinct orange */
+  --status-todo: #E53935;        /* Pending (To Do) */
+  --status-inprogress: #FFD600;  /* In Progress */
+  --status-done: #43A047;        /* Done */
+  --status-review: #FF9800;      /* Review */
+  --status-hold: #D7827F;        /* unchanged */
 
   --priority-critical: #D14D3F;
   --priority-high: #C58A2A;
@@ -308,10 +310,10 @@ body {
   border-radius: 50%;
   border: 1px solid rgba(0,0,0,0.08);
 }
-.status-chip .dot.to-do { background: #A0A4AE; }
-.status-chip .dot.in-progress { background: #E1986E; }
-.status-chip .dot.review { background: #D3A94E; }
-.status-chip .dot.done { background: #36B37E; }
+.status-chip .dot.to-do { background: #E53935; }       /* Pending */
+.status-chip .dot.in-progress { background: #FFD600; } /* In Progress */
+.status-chip .dot.review { background: #FF9800; }      /* Review */
+.status-chip .dot.done { background: #43A047; }        /* Done */
 .status-chip .dot.on-hold { background: #D7827F; }
 .status-label { font-weight: 700; }
 .status-count { font-weight: 800; }
@@ -800,19 +802,19 @@ body.summary-fullscreen .summary-page {
 }
 .summary-col-card.status-done {
   background: var(--summary-card-done) !important;
-  border-color: #CFE9DB;
+  border-color: #A7D7BF; /* tuned to new green */
 }
 .summary-col-card.status-inprogress {
   background: var(--summary-card-inprogress) !important;
-  border-color: #F1E6B8;
+  border-color: #FFE37A; /* tuned to bright yellow */
 }
 .summary-col-card.status-todo {
   background: var(--summary-card-todo) !important;
-  border-color: #F1C9C9;
+  border-color: #F2A7A6; /* tuned to vibrant red */
 }
 .summary-col-card.status-review {
   background: var(--summary-card-review) !important;
-  border-color: #F1E1AD;
+  border-color: #FFD08A; /* tuned to orange */
 }
 .summary-col-card.status-hold {
   background: var(--summary-card-hold) !important;

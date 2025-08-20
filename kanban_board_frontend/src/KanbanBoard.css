@@ -304,17 +304,17 @@
 }
 .kanban-card.card-inprogress {
   background: var(--card-bg-inprogress) !important;
-  border-left-color: var(--status-inprogress);
+  border-left-color: var(--status-inprogress); /* #FFD600 */
   color: var(--color-card-text-dark) !important;
 }
 .kanban-card.card-done {
   background: var(--card-bg-done) !important;
-  border-left-color: var(--status-done);
+  border-left-color: var(--status-done); /* #43A047 */
   color: var(--color-card-text-dark) !important;
 }
 .kanban-card.card-review {
   background: var(--card-bg-review) !important;
-  border-left-color: var(--status-review);
+  border-left-color: var(--status-review); /* #FF9800 */
   color: var(--color-card-text-dark) !important;
 }
 .kanban-card.card-hold {

@@ -175,11 +175,11 @@ function KanbanCard({ card, isCompact = false, showMarketColumn = false, showPro
   // Small status color indicator
   function getStatusDotColor() {
     const st = (card.status || '').toLowerCase();
-    if (st.includes('progress')) return '#E1986E';
-    if (st.includes('done')) return '#36B37E';
-    if (st.includes('review')) return '#D3A94E';
-    if (st.includes('hold')) return '#D7827F';
-    if (st.includes('todo')) return '#A0A4AE';
+    if (st.includes('progress')) return '#FFD600'; // In Progress - bright yellow
+    if (st.includes('done')) return '#43A047';     // Done - vivid green
+    if (st.includes('review')) return '#FF9800';   // Review - distinct orange
+    if (st.includes('hold')) return '#D7827F';     // On Hold - unchanged
+    if (st.includes('todo')) return '#E53935';     // Pending/To Do - clearer red
     return '#CFCFD4';
   }
 
