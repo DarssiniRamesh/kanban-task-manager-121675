@@ -795,7 +795,7 @@ body.summary-fullscreen .summary-page {
 :root {
   /* Vivid yet light, accessible fills for summary cards */
   --summary-card-done: #E9F7EF;         /* more vivid light green */
-  --summary-card-inprogress: #FFF7BF;   /* more vivid light yellow */
+  --summary-card-inprogress: #FFFBE6;   /* softer, lighter yellow for In Progress */
   --summary-card-todo: #FFE3E3;         /* more vivid light red (Pending/To Do) */
   --summary-card-review: #FFE7C2;       /* vivid light orange for Review */
   --summary-card-hold: #FFE7E1;         /* soft red for On Hold */
