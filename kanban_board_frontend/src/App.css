@@ -540,7 +540,11 @@ body.summary-fullscreen .summary-col-assignee {
   margin-left: 4px;
   white-space: normal;                    /* allow wrapping */
   line-height: 1.1;
-  color: #000000 !important;              /* Ensure black in fullscreen too */
+  color: #000000 !important;              /* Ensure readable text */
+  background: transparent !important;     /* No chip-like background */
+  border: none !important;
+  padding: 0;
+  border-radius: 0;
 }
 
 /* Density scaling based on detected overflow/column width */
@@ -859,11 +863,11 @@ body.summary-fullscreen .summary-page {
   word-break: break-word;
 }
 .summary-col-assignee {
-  background: #FFF0E7;
-  color: #000000 !important; /* Force black font for assignee for clarity */
-  border: 1px solid #F0D7CB;
-  border-radius: 999px;
-  padding: 1px 6px;
+  background: transparent !important; /* No specific background */
+  color: #000000 !important; /* Keep readable text */
+  border: none !important; /* No border to appear like inline text */
+  border-radius: 0;
+  padding: 0; /* Align with surrounding text */
   font-size: .76rem;
   font-weight: 700;
   white-space: nowrap;
