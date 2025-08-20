@@ -793,32 +793,38 @@ body.summary-fullscreen .summary-page {
 
 /* Status-based background colors for summary cards (compact, presentation-friendly) */
 :root {
-  --summary-card-done: #F4FBF7;       /* light green */
-  --summary-card-inprogress: #FFFCE6; /* light yellow */
-  --summary-card-todo: #FFECEC;       /* light red */
-  --summary-card-review: #FFF9E8;     /* soft yellow (review) */
-  --summary-card-hold: #FFF3F1;       /* soft red (on hold) */
-  --summary-card-border: #EADCD3;     /* subtle card border */
+  /* Vivid yet light, accessible fills for summary cards */
+  --summary-card-done: #E9F7EF;         /* more vivid light green */
+  --summary-card-inprogress: #FFF7BF;   /* more vivid light yellow */
+  --summary-card-todo: #FFE3E3;         /* more vivid light red (Pending/To Do) */
+  --summary-card-review: #FFE7C2;       /* vivid light orange for Review */
+  --summary-card-hold: #FFE7E1;         /* soft red for On Hold */
+  --summary-card-border: #E3D6CC;       /* subtle card border */
 }
 .summary-col-card.status-done {
   background: var(--summary-card-done) !important;
-  border-color: #A7D7BF; /* tuned to new green */
+  border-color: #8FD6B0; /* green accent */
+  color: #16351f;        /* ensure readable text on green */
 }
 .summary-col-card.status-inprogress {
   background: var(--summary-card-inprogress) !important;
-  border-color: #FFE37A; /* tuned to bright yellow */
+  border-color: #FFDF70; /* yellow accent */
+  color: #3a3200;        /* ensure readable text on yellow */
 }
 .summary-col-card.status-todo {
   background: var(--summary-card-todo) !important;
-  border-color: #F2A7A6; /* tuned to vibrant red */
+  border-color: #F29B9B; /* red accent */
+  color: #3b0d0d;        /* ensure readable text on red tint */
 }
 .summary-col-card.status-review {
   background: var(--summary-card-review) !important;
-  border-color: #FFD08A; /* tuned to orange */
+  border-color: #FFB46B; /* orange accent */
+  color: #4a2a00;        /* ensure readable text on orange tint */
 }
 .summary-col-card.status-hold {
   background: var(--summary-card-hold) !important;
-  border-color: #EAC3BF;
+  border-color: #E7BBB4;
+  color: #4a1f1a;
 }
 
 /* Cards within summary column */
