@@ -540,6 +540,7 @@ body.summary-fullscreen .summary-col-assignee {
   margin-left: 4px;
   white-space: normal;                    /* allow wrapping */
   line-height: 1.1;
+  color: #000000 !important;              /* Ensure black in fullscreen too */
 }
 
 /* Density scaling based on detected overflow/column width */
@@ -859,7 +860,7 @@ body.summary-fullscreen .summary-page {
 }
 .summary-col-assignee {
   background: #FFF0E7;
-  color: #8B3C1F;
+  color: #000000 !important; /* Force black font for assignee for clarity */
   border: 1px solid #F0D7CB;
   border-radius: 999px;
   padding: 1px 6px;
