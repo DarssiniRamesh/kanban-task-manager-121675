@@ -14,8 +14,8 @@ function Column({ column, index, isDragging, isOver, filteredCards, isCompact })
   const { updateColumn, deleteColumn, cards } = useKanban();
   // Use filteredCards if provided, otherwise filter all cards for this column
   const colCards = (filteredCards !== undefined)
-    ? filteredCards
-    : cards.filter(c => c.column_id === column.id).sort((a, b) => a.position - b.position);
+    ? [...filteredCards].sort((a, b) => (a.position || 0) - (b.position || 0))
+    : cards.filter(c => c.column_id === column.id).sort((a, b) => (a.position || 0) - (b.position || 0));
 
   // Modal state: delete/rename
   const [modal, setModal] = React.useState({ type: null });

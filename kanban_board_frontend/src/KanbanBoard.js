@@ -279,19 +279,26 @@ function KanbanBoardInner() {
         ) : error ? (
           <div className="kanban-error">{error}</div>
         ) : (
-          columns.map((col, idx) => (
-            <DraggableKanbanColumn
-              key={col.id}
-              column={col}
-              index={idx}
-              moveColumn={moveColumn}
-              draggedCol={draggedCol}
-              setDraggedCol={setDraggedCol}
-              totalColumns={columns.length}
-              filteredCards={filteredCards.filter(c => c.column_id === col.id)}
-              isCompact={isCompact}
-            />
-          ))
+          columns.map((col, idx) => {
+            // Ensure the column renders only cards matching the active Product Page filter
+            const cardsForThisColumn = filteredCards
+              .filter(c => c.column_id === col.id)
+              .sort((a, b) => (a.position || 0) - (b.position || 0));
+
+            return (
+              <DraggableKanbanColumn
+                key={col.id}
+                column={col}
+                index={idx}
+                moveColumn={moveColumn}
+                draggedCol={draggedCol}
+                setDraggedCol={setDraggedCol}
+                totalColumns={columns.length}
+                filteredCards={cardsForThisColumn}
+                isCompact={isCompact}
+              />
+            );
+          })
         )}
       </div>
     </div>
