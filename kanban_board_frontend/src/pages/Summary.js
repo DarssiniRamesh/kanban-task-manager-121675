@@ -8,6 +8,7 @@ import UnfoldMoreIcon from '@mui/icons-material/UnfoldMore';
 import FullscreenIcon from '@mui/icons-material/Fullscreen';
 import FullscreenExitIcon from '@mui/icons-material/FullscreenExit';
 import { Tooltip, IconButton } from '@mui/material';
+import FilterPanel from '../components/FilterPanel';
 
 /**
  * PUBLIC_INTERFACE
@@ -15,10 +16,58 @@ import { Tooltip, IconButton } from '@mui/material';
  * - Displays each Kanban column as a vertical panel (side-by-side) with minimal UI.
  * - Allows drag & drop reordering of columns (persisted via KanbanContext.reorderColumns).
  * - Provides controls to minimize/expand each column to customize the presentation.
- * - Keeps the application navigation header visible (Dashboard, Product).
+ * - Supports filtering, reusing Product/Kanban page filter logic.
+ * - Provides fullscreen presentation mode with responsive grid and density scaling.
  */
 export default function Summary() {
   const { columns, cards, isLoading, error, reorderColumns } = useKanban();
+
+  // Local filter state (same schema as Product page)
+  const [filters, setFilters] = React.useState({
+    assignees: [],
+    priorities: [],
+    statuses: [],
+    columns: [],
+    impact: [],
+    market_need: [],
+    category: [],
+    estimatedEffortMin: "",
+    estimatedEffortMax: "",
+    dueFrom: "",
+    dueTo: ""
+  });
+
+  // Filtering function (same AND logic as Product page)
+  const filterCardsAND = React.useCallback((cardsArr, filtersObj) => {
+    return (cardsArr || []).filter(c => {
+      if (filtersObj.assignees?.length > 0 && (!c.assignee || !filtersObj.assignees.includes(c.assignee))) return false;
+      if (filtersObj.priorities?.length > 0 && (!c.priority || !filtersObj.priorities.includes(c.priority))) return false;
+      if (filtersObj.statuses?.length > 0 && (!c.status || !filtersObj.statuses.includes(c.status))) return false;
+      if (filtersObj.columns?.length > 0 && (!c.column_id || !filtersObj.columns.includes(c.column_id))) return false;
+      if (filtersObj.impact?.length > 0 && (!c.impact || !filtersObj.impact.includes(c.impact))) return false;
+      if (filtersObj.market_need?.length > 0 && (!c.market_need || !filtersObj.market_need.includes(c.market_need))) return false;
+      if (filtersObj.category?.length > 0 && (!c.category || !filtersObj.category.includes(c.category))) return false;
+
+      const hasMin = filtersObj.estimatedEffortMin !== undefined && filtersObj.estimatedEffortMin !== '' && filtersObj.estimatedEffortMin !== null;
+      const hasMax = filtersObj.estimatedEffortMax !== undefined && filtersObj.estimatedEffortMax !== '' && filtersObj.estimatedEffortMax !== null;
+      if (hasMin || hasMax) {
+        if (c.estimated_effort === undefined || c.estimated_effort === null || c.estimated_effort === '') return false;
+        const val = Number(c.estimated_effort);
+        if (hasMin && val < Number(filtersObj.estimatedEffortMin)) return false;
+        if (hasMax && val > Number(filtersObj.estimatedEffortMax)) return false;
+      }
+
+      if (filtersObj.dueFrom || filtersObj.dueTo) {
+        if (!c.due_date) return false;
+        if (filtersObj.dueFrom && c.due_date < filtersObj.dueFrom) return false;
+        if (filtersObj.dueTo && c.due_date > filtersObj.dueTo) return false;
+      }
+      return true;
+    });
+  }, []);
+
+  // Compute filtered cards once per change
+  const filteredCards = React.useMemo(() => filterCardsAND(cards, filters), [cards, filters, filterCardsAND]);
 
   // Fullscreen toggle state (persisted)
   const [fullScreen, setFullScreen] = React.useState(() => {
@@ -75,18 +124,18 @@ export default function Summary() {
     setCollapsed(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
-  // Cards by column, sorted by position
+  // Cards by column (from filtered set), sorted by position
   const cardsByColumn = React.useMemo(() => {
     const map = new Map();
     (columns || []).forEach((c) => map.set(c.id, []));
-    (cards || []).forEach((c) => {
+    (filteredCards || []).forEach((c) => {
       if (map.has(c.column_id)) map.get(c.column_id).push(c);
     });
     map.forEach((list) =>
       list.sort((a, b) => (a.position || 0) - (b.position || 0))
     );
     return map;
-  }, [columns, cards]);
+  }, [columns, filteredCards]);
 
   // Move column via context API
   const moveColumn = (fromIdx, toIdx) => {
@@ -103,13 +152,11 @@ export default function Summary() {
   };
 
   // Dynamic grid and density scaling for fullscreen
-  // Moved ABOVE early returns to satisfy Rules of Hooks.
   const boardRef = React.useRef(null);
   const [densityClass, setDensityClass] = React.useState('');
   const [cssVars, setCssVars] = React.useState({});
 
   const computeScale = React.useCallback((count) => {
-    // Piecewise scaling for legibility
     if (count <= 5) return 1;
     if (count <= 7) return 0.92;
     if (count <= 9) return 0.88;
@@ -127,13 +174,12 @@ export default function Summary() {
     const el = boardRef.current;
     if (!el) return;
 
-    const GAP = 8; // default gap in px; will be reduced via density class
+    const GAP = 8;
     const containerWidth = el.clientWidth || 0;
     const count = (columns || []).length || 0;
     if (count === 0 || containerWidth === 0) return;
 
     const perCol = containerWidth / count - (GAP * (count - 1)) / Math.max(1, count);
-    // Determine density thresholds
     let dc = '';
     if (perCol < 240) dc = 'summary-density-1';
     if (perCol < 200) dc = 'summary-density-2';
@@ -144,23 +190,18 @@ export default function Summary() {
     setCssVars({
       '--summary-scale': String(scale),
       '--summary-cols': String(count),
-      // grid template is passed inline for precision, but we expose a variable for CSS fallback
       '--summary-grid': `repeat(${count}, minmax(0, 1fr))`,
     });
   }, [fullScreen, columns, computeScale]);
 
   React.useEffect(() => {
     if (!fullScreen) return;
-    const onResize = () => {
-      // retrigger effect by cloning cssVars to force recalculation
-      setCssVars(v => ({ ...v }));
-    };
+    const onResize = () => setCssVars(v => ({ ...v }));
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, [fullScreen]);
 
-  function DraggableSummaryColumn({ column, index, totalColumns }) {
-    // Drag source
+  function DraggableSummaryColumn({ column, index }) {
     const [{ isDragging }, drag] = useDrag({
       type: COLUMN_TYPE,
       item: { id: column.id, index },
@@ -169,7 +210,6 @@ export default function Summary() {
       }),
     });
 
-    // Drop target
     const [{ isOver, canDrop }, drop] = useDrop({
       accept: COLUMN_TYPE,
       canDrop: (item) => item.id !== column.id,
@@ -250,9 +290,6 @@ export default function Summary() {
     );
   }
 
-  // Status dot indicator removed from Summary cards; color marker no longer displayed.
-
-  // Map card status to a CSS class for status-based background colors on summary cards
   function getStatusClass(status) {
     const st = (status || '').toLowerCase();
     if (st.includes('done')) return 'status-done';
@@ -263,7 +300,6 @@ export default function Summary() {
     return '';
   }
 
-  // IMPORTANT: Early returns AFTER all hooks to satisfy Rules of Hooks.
   if (isLoading) return <div className="kanban-loading">Loading...</div>;
   if (error) return <div className="kanban-error">{error}</div>;
 
@@ -290,6 +326,11 @@ export default function Summary() {
           </div>
         </div>
 
+        {/* Filter panel placed under the header; it will auto-hide in fullscreen via global CSS if needed */}
+        {!isLoading && !error && (
+          <FilterPanel onFiltersChange={setFilters} />
+        )}
+
         <DndProvider backend={HTML5Backend}>
           <div
             ref={boardRef}
@@ -312,7 +353,6 @@ export default function Summary() {
                 key={col.id}
                 column={col}
                 index={idx}
-                totalColumns={columns.length}
               />
             ))}
           </div>
