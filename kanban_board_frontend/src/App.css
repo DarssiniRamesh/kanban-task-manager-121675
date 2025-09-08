@@ -42,9 +42,9 @@
   /* Status/priority border accents (subtle) */
   /* Status accents aligned with vivid but not dark palette */
   /* Pending (To Do) -> clearer red, In Progress -> brighter yellow, Done -> vivid green, Review -> distinct orange */
-  --status-todo: #E53935;        /* Pending (To Do) */
-  --status-inprogress: #FFD600;  /* In Progress */
-  --status-done: #43A047;        /* Done */
+  --status-todo: #C62828;        /* Pending (To Do) - deeper red */
+  --status-inprogress: #F9A825;  /* In Progress - deeper yellow */
+  --status-done: #2E7D32;        /* Done - clearer, deeper green */
   --status-review: #8B5E3C;      /* Review (brown accent) */
   --status-hold: #D7827F;        /* unchanged */
 
@@ -63,11 +63,11 @@
   /* For pill badges/chips */
   --color-pill-info: #E87A41;
   --color-pill-progress: #C9612F;
-  --color-pill-done: #36B37E;
-  --color-pill-review: #FFAB00;
-  --color-pill-hold: #FF5630;
-  --color-pill-critical: #DE350B;
-  --color-pill-high: #FFAB00;
+  --color-pill-done: #2E7D32;    /* deeper green */
+  --color-pill-review: #F9A825;  /* deeper yellow */
+  --color-pill-hold: #D32F2F;    /* deeper red for hold-related warnings */
+  --color-pill-critical: #C62828; /* deeper red */
+  --color-pill-high: #F9A825;    /* deeper yellow */
   --color-pill-medium: #FFD5C2;
   --color-pill-low: #FFE6D8;
 
@@ -310,10 +310,10 @@ body {
   border-radius: 50%;
   border: 1px solid rgba(0,0,0,0.08);
 }
-.status-chip .dot.to-do { background: #E53935; }       /* Pending */
-.status-chip .dot.in-progress { background: #FFD600; } /* In Progress */
-.status-chip .dot.review { background: #FF9800; }      /* Review */
-.status-chip .dot.done { background: #43A047; }        /* Done */
+.status-chip .dot.to-do { background: #C62828; }       /* Pending */
+.status-chip .dot.in-progress { background: #F9A825; } /* In Progress */
+.status-chip .dot.review { background: #F57C00; }      /* Review - slightly deeper orange for contrast */
+.status-chip .dot.done { background: #2E7D32; }        /* Done */
 .status-chip .dot.on-hold { background: #D7827F; }
 .status-label { font-weight: 700; }
 .status-count { font-weight: 800; }
@@ -799,26 +799,26 @@ body.summary-fullscreen .summary-page {
 /* Status-based background colors for summary cards (compact, presentation-friendly) */
 :root {
   /* Vivid yet light, accessible fills for summary cards */
-  --summary-card-done: #E9F7EF;         /* more vivid light green */
-  --summary-card-inprogress: #FFFBE6;   /* softer, lighter yellow for In Progress */
-  --summary-card-todo: #FFE3E3;         /* more vivid light red (Pending/To Do) */
+  --summary-card-done: #E4F2E7;         /* light tint aligned to deeper green */
+  --summary-card-inprogress: #FFF3CC;   /* deeper yellow tint */
+  --summary-card-todo: #FADADD;         /* deeper red tint */
   --summary-card-review: #F4E9E0;       /* light, accessible brown for Review */
   --summary-card-hold: #FFE7E1;         /* soft red for On Hold */
   --summary-card-border: #E3D6CC;       /* subtle card border */
 }
 .summary-col-card.status-done {
   background: var(--summary-card-done) !important;
-  border-color: #8FD6B0; /* green accent */
+  border-color: #66BB6A; /* deeper green accent */
   color: #16351f;        /* ensure readable text on green */
 }
 .summary-col-card.status-inprogress {
   background: var(--summary-card-inprogress) !important;
-  border-color: #FFDF70; /* yellow accent */
+  border-color: #F2C94C; /* deeper yellow accent */
   color: #3a3200;        /* ensure readable text on yellow */
 }
 .summary-col-card.status-todo {
   background: var(--summary-card-todo) !important;
-  border-color: #F29B9B; /* red accent */
+  border-color: #EF9A9A; /* deeper red accent */
   color: #3b0d0d;        /* ensure readable text on red tint */
 }
 .summary-col-card.status-review {
@@ -1092,19 +1092,19 @@ html {
 .kanban-pill-assignee { background: var(--color-bg-chip); color: var(--color-chip-text);}
 .kanban-pill-due { background: var(--color-bg-chip); color: var(--color-chip-text);}
 .pill-high { 
-  background: #EB5757 !important;  /* High - red */
-  color: #FFFFFF !important;       /* white text for strong contrast */
-  border-color: rgba(0,0,0,0.1) !important;
+  background: #C62828 !important;  /* High - deeper red */
+  color: #FFFFFF !important;       
+  border-color: rgba(0,0,0,0.12) !important;
 }
 .pill-medium { 
-  background: #F2994A !important;  /* Medium - orange */
-  color: #222222 !important;       /* dark text for 4.5:1+ contrast */
-  border-color: rgba(0,0,0,0.1) !important;
+  background: #F9A825 !important;  /* Medium - deeper yellow/orange */
+  color: #222222 !important;       
+  border-color: rgba(0,0,0,0.12) !important;
 }
 .pill-low { 
-  background: #27AE60 !important;  /* Low - green */
-  color: #FFFFFF !important;       /* white text for strong contrast */
-  border-color: rgba(0,0,0,0.1) !important;
+  background: #2E7D32 !important;  /* Low - deeper, clearer green */
+  color: #FFFFFF !important;       
+  border-color: rgba(0,0,0,0.12) !important;
 }
 .pill-none {
   background: #BDBDBD !important;  /* None - gray */

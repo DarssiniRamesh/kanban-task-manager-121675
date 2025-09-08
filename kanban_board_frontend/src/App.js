@@ -28,7 +28,7 @@ const kaviaTheme = createTheme({
       main: "#E87A41"
     },
     success: {
-      main: "#36B37E"
+      main: "#2E7D32"
     },
     text: {
       primary: "#1A1A1A",
