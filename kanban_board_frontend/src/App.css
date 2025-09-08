@@ -42,7 +42,7 @@
   /* Status/priority border accents (subtle) */
   /* Status accents aligned with vivid but not dark palette */
   /* Pending (To Do) -> clearer red, In Progress -> brighter yellow, Done -> vivid green, Review -> distinct orange */
-  --status-todo: #C62828;        /* Pending (To Do) - deeper red */
+  --status-todo: #757575;        /* To Do - neutral grey */
   --status-inprogress: #F9A825;  /* In Progress - deeper yellow */
   --status-done: #2E7D32;        /* Done - clearer, deeper green */
   --status-review: #8B5E3C;      /* Review (brown accent) */
@@ -310,11 +310,11 @@ body {
   border-radius: 50%;
   border: 1px solid rgba(0,0,0,0.08);
 }
-.status-chip .dot.to-do { background: #C62828; }       /* Pending */
+.status-chip .dot.to-do { background: #757575; }       /* To Do - grey */
 .status-chip .dot.in-progress { background: #F9A825; } /* In Progress */
 .status-chip .dot.review { background: #F57C00; }      /* Review - slightly deeper orange for contrast */
 .status-chip .dot.done { background: #2E7D32; }        /* Done */
-.status-chip .dot.on-hold { background: #D7827F; }
+.status-chip .dot.on-hold { background: #C62828; } /* On-Hold - deeper red */
 .status-label { font-weight: 700; }
 .status-count { font-weight: 800; }
 
@@ -801,9 +801,9 @@ body.summary-fullscreen .summary-page {
   /* Vivid yet light, accessible fills for summary cards */
   --summary-card-done: #E4F2E7;         /* light tint aligned to deeper green */
   --summary-card-inprogress: #FFF3CC;   /* deeper yellow tint */
-  --summary-card-todo: #FADADD;         /* deeper red tint */
+  --summary-card-todo: #EEEEEE;         /* To Do - light grey tint */
   --summary-card-review: #F4E9E0;       /* light, accessible brown for Review */
-  --summary-card-hold: #FFE7E1;         /* soft red for On Hold */
+  --summary-card-hold: #FADADD;         /* On Hold - soft/deeper red tint */
   --summary-card-border: #E3D6CC;       /* subtle card border */
 }
 .summary-col-card.status-done {
@@ -818,8 +818,8 @@ body.summary-fullscreen .summary-page {
 }
 .summary-col-card.status-todo {
   background: var(--summary-card-todo) !important;
-  border-color: #EF9A9A; /* deeper red accent */
-  color: #3b0d0d;        /* ensure readable text on red tint */
+  border-color: #9E9E9E; /* grey accent */
+  color: #222222;        /* ensure readable text on grey tint */
 }
 .summary-col-card.status-review {
   background: var(--summary-card-review) !important;
@@ -828,7 +828,7 @@ body.summary-fullscreen .summary-page {
 }
 .summary-col-card.status-hold {
   background: var(--summary-card-hold) !important;
-  border-color: #E7BBB4;
+  border-color: #C62828; /* deeper red accent */
   color: #4a1f1a;
 }
 
@@ -1111,7 +1111,7 @@ html {
   color: #222222 !important;       /* dark text for readability */
   border-color: rgba(0,0,0,0.1) !important;
 }
-.pill-todo { background: var(--card-bg-todo) !important; color: var(--color-pill-info) !important; }
+.pill-todo { background: var(--card-bg-todo) !important; color: #616161 !important; } /* To Do - grey text */
 .pill-progress { background: var(--card-bg-inprogress) !important; color: var(--color-pill-progress) !important; }
 .pill-done { background: var(--card-bg-done) !important; color: var(--color-pill-done) !important; }
 .pill-review { background: var(--card-bg-review) !important; color: var(--color-pill-review) !important; }

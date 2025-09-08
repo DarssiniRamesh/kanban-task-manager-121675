@@ -299,7 +299,7 @@
 /* Status accents: very light tint + left border color */
 .kanban-card.card-todo {
   background: var(--card-bg-todo) !important;
-  border-left-color: var(--status-todo);
+  border-left-color: #757575; /* To Do - grey */
   color: var(--color-card-text-dark) !important;
 }
 .kanban-card.card-inprogress {
@@ -319,7 +319,7 @@
 }
 .kanban-card.card-hold {
   background: var(--card-bg-hold) !important;
-  border-left-color: var(--status-hold);
+  border-left-color: #C62828; /* On-Hold - deeper red */
   color: var(--color-card-text-dark) !important;
 }
 /* Ensure readable text on colored backgrounds */

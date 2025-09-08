@@ -178,8 +178,8 @@ function KanbanCard({ card, isCompact = false, showMarketColumn = false, showPro
     if (st.includes('progress')) return '#F9A825'; // In Progress - deeper yellow
     if (st.includes('done')) return '#2E7D32';     // Done - clearer, deeper green
     if (st.includes('review')) return '#F57C00';   // Review - deeper orange
-    if (st.includes('hold')) return '#D7827F';     // On Hold - unchanged base
-    if (st.includes('todo')) return '#C62828';     // Pending/To Do - deeper red
+    if (st.includes('hold')) return '#C62828';     // On Hold - deeper red
+    if (st.includes('todo')) return '#757575';     // To Do - grey
     return '#CFCFD4';
   }
 
