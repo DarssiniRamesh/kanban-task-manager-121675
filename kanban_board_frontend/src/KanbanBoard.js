@@ -72,10 +72,12 @@ function filterCardsAND(cards, filters, columns) {
 }
 
 function KanbanBoardInner() {
-  const { columns, isLoading, error, reorderColumns, cards } = useKanban();
+  const { columns, activeColumns, archivedColumns, isLoading, error, reorderColumns, cards, unarchiveColumn } = useKanban();
   const { showToast } = useFeedback();
   const { isCompact } = useExpandMode();
   const [draggedCol, setDraggedCol] = React.useState(null);
+
+  const [showArchived, setShowArchived] = React.useState(false);
 
   // Fullscreen state for Product page (persisted)
   const [fullScreen, setFullScreen] = React.useState(() => {
@@ -134,12 +136,13 @@ function KanbanBoardInner() {
 
   // Handles local column reordering, triggers Supabase sync
   const moveColumn = (fromIdx, toIdx) => {
+    const list = activeColumns || columns || [];
     // Defensive: do not swap to invalid
-    if (fromIdx === toIdx || fromIdx < 0 || toIdx < 0 || fromIdx >= columns.length || toIdx >= columns.length) return;
-    const reordered = [...columns];
+    if (fromIdx === toIdx || fromIdx < 0 || toIdx < 0 || fromIdx >= list.length || toIdx >= list.length) return;
+    const reordered = [...list];
     const [removed] = reordered.splice(fromIdx, 1);
     reordered.splice(toIdx, 0, removed);
-    // Renumber positions: 1-based sequencing
+    // Renumber positions: 1-based sequencing (only for active columns)
     const newOrder = reordered.map((col, i) => ({
       id: col.id,
       position: i + 1
@@ -240,7 +243,7 @@ function KanbanBoardInner() {
         ) : error ? (
           <div className="kanban-error">{error}</div>
         ) : (
-          columns.map((col, idx) => (
+          (activeColumns || []).map((col, idx) => (
             <DraggableKanbanColumn
               key={col.id}
               column={col}
@@ -248,13 +251,54 @@ function KanbanBoardInner() {
               moveColumn={moveColumn}
               draggedCol={draggedCol}
               setDraggedCol={setDraggedCol}
-              totalColumns={columns.length}
+              totalColumns={(activeColumns || []).length}
               filteredCards={filteredCards.filter(c => c.column_id === col.id)}
               isCompact={isCompact}
             />
           ))
         )}
       </div>
+
+      {/* Archived columns section (collapsed by default) */}
+      {!isLoading && !error && (archivedColumns || []).length > 0 && (
+        <div className="archived-columns-panel" aria-label="Archived columns">
+          <button
+            type="button"
+            className="btn archived-toggle-btn"
+            onClick={() => setShowArchived(v => !v)}
+            aria-expanded={showArchived}
+          >
+            {showArchived ? 'Hide' : 'Show'} Archived Columns ({archivedColumns.length})
+          </button>
+
+          {showArchived && (
+            <div className="archived-columns-list" role="list" aria-label="Archived column list">
+              {archivedColumns.map(col => (
+                <div className="archived-column-row" role="listitem" key={col.id}>
+                  <div className="archived-column-title">{col.title}</div>
+                  <button
+                    type="button"
+                    className="btn archived-restore-btn"
+                    onClick={async () => {
+                      try {
+                        const err = await unarchiveColumn(col.id);
+                        if (err) throw err;
+                        showToast && showToast(`Unarchived "${col.title}"`, 'success');
+                      } catch (e) {
+                        showToast && showToast(`Failed to unarchive "${col.title}": ${e.message || e}`, 'error');
+                      }
+                    }}
+                    aria-label={`Unarchive column ${col.title}`}
+                    title="Restore column"
+                  >
+                    Restore
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -7,8 +7,8 @@ let _client = null;
  * This avoids committing credentials to the repository and allows per-environment configuration.
  */
 function readSupabaseConfigFromEnv() {
-  const url = process.env.REACT_APP_SUPABASE_URL;
-  const anonKey = process.env.REACT_APP_SUPABASE_ANON_KEY;
+  const url = "https://tgugqsvmguzibckxrlrk.supabase.co";
+  const anonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRndWdxc3ZtZ3V6aWJja3hybHJrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ0ODE4MjMsImV4cCI6MjA3MDA1NzgyM30.OZO3o1WpVG2SX0LwVf5uDIA0TEzey793UZzc-v7DqqY';
 
   if (!url || !anonKey) {
     // eslint-disable-next-line no-console

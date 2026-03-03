@@ -58,7 +58,7 @@ function renderChips(values, getLabel, onDelete) {
  * and searchable typeahead drop-down (MUI Autocomplete).
  */
 export default function FilterPanel({ onFiltersChange }) {
-  const { cards, columns } = useKanban();
+  const { cards, activeColumns } = useKanban();
   const theme = useTheme();
 
   // Filter state
@@ -90,8 +90,8 @@ export default function FilterPanel({ onFiltersChange }) {
     [cards]
   );
   const columnOptions = useMemo(
-    () => columns.map((col) => ({ id: col.id, title: col.title })),
-    [columns]
+    () => (activeColumns || []).map((col) => ({ id: col.id, title: col.title })),
+    [activeColumns]
   );
 
   // Change handlers for filters

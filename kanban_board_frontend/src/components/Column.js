@@ -10,7 +10,7 @@ import { CARD_TYPE } from './dndTypes';
  * If filteredCards prop is provided, use those cards for render.
  */
 function Column({ column, index, isDragging, isOver, filteredCards, isCompact }) {
-  const { updateColumn, deleteColumn, cards } = useKanban();
+  const { updateColumn, deleteColumn, archiveColumn, cards } = useKanban();
   // Use filteredCards if provided, otherwise filter all cards for this column
   const colCards = (filteredCards !== undefined)
     ? filteredCards
@@ -204,9 +204,29 @@ function Column({ column, index, isDragging, isOver, filteredCards, isCompact })
               </button>
             </span>
           )}
-          <button className="kanban-column-delbtn" onClick={handleDelete} title="Delete column">
-            ×
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <button
+              type="button"
+              className="kanban-column-archivebtn"
+              onClick={async (e) => {
+                e.stopPropagation();
+                try {
+                  const err = await archiveColumn(column.id);
+                  if (err) throw err;
+                  showToast && showToast(`Archived "${column.title}"`, 'success');
+                } catch (ex) {
+                  showToast && showToast(`Failed to archive "${column.title}": ${ex.message || ex}`, 'error');
+                }
+              }}
+              title="Archive column (hide from board)"
+              aria-label={`Archive column ${column.title}`}
+            >
+              Archive
+            </button>
+            <button className="kanban-column-delbtn" onClick={handleDelete} title="Delete column">
+              ×
+            </button>
+          </div>
         </div>
         <CardList column={column} cards={colCards} isCompact={isCompact} />
         <span className="sr-only">{isDragging ? 'Dragging column' : ''}</span>

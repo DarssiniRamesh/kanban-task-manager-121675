@@ -70,16 +70,37 @@ export function KanbanProvider({ children }) {
 
   // Column CRUD
   const addColumn = async (title) => {
-    const newPos = columns.length ? Math.max(...columns.map(c=>c.position)) + 1 : 1;
-    let { error } = await supabase.from('kanban_columns').insert({ title, position: newPos });
+    const newPos = columns.length ? Math.max(...columns.map(c => c.position)) + 1 : 1;
+    // Explicitly set is_archived to false for backwards compatibility with older schemas.
+    let { error } = await supabase
+      .from('kanban_columns')
+      .insert({ title, position: newPos, is_archived: false });
     await fetchAll();
     return error;
   };
+
   const updateColumn = async (id, updates) => {
     let { error } = await supabase.from('kanban_columns').update(updates).eq('id', id);
     await fetchAll();
     return error;
   };
+
+  // PUBLIC_INTERFACE
+  const archiveColumn = async (id) => {
+    /** Archives a column (hides it from the board UI) while keeping it in Supabase for later restore. */
+    let { error } = await supabase.from('kanban_columns').update({ is_archived: true }).eq('id', id);
+    await fetchAll();
+    return error;
+  };
+
+  // PUBLIC_INTERFACE
+  const unarchiveColumn = async (id) => {
+    /** Restores an archived column (shows it in the board UI again). */
+    let { error } = await supabase.from('kanban_columns').update({ is_archived: false }).eq('id', id);
+    await fetchAll();
+    return error;
+  };
+
   const deleteColumn = async (id) => {
     let { error } = await supabase.from('kanban_columns').delete().eq('id', id);
     await fetchAll();
@@ -214,13 +235,18 @@ export function KanbanProvider({ children }) {
   return (
     <KanbanContext.Provider
       value={{
+        // Keep the original `columns` for compatibility, but add helpers for UI.
         columns,
+        activeColumns: (columns || []).filter(c => !c.is_archived),
+        archivedColumns: (columns || []).filter(c => c.is_archived),
         cards,
         isLoading,
         error,
         fetchAll,
         addColumn,
         updateColumn,
+        archiveColumn,
+        unarchiveColumn,
         deleteColumn,
         reorderColumns,
         addCard,

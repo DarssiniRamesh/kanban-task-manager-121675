@@ -213,6 +213,66 @@
   background: rgba(244,51,51,0.08);
 }
 
+.kanban-column-archivebtn {
+  background: rgba(255, 179, 0, 0.10);
+  border: 1px solid rgba(255, 179, 0, 0.35);
+  color: var(--color-accent, #ffb300);
+  font-weight: 800;
+  font-size: 0.86rem;
+  padding: 4px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.14s, border-color 0.14s, transform 0.08s;
+}
+.kanban-column-archivebtn:hover {
+  background: rgba(255, 179, 0, 0.18);
+  border-color: rgba(255, 179, 0, 0.55);
+}
+.kanban-column-archivebtn:active {
+  transform: translateY(1px);
+}
+
+.archived-columns-panel {
+  padding: 10px 12px 22px 12px;
+  margin: 0 10px 40px 10px;
+}
+.archived-toggle-btn {
+  background: #132944;
+  color: #ffd38a;
+  font-weight: 900;
+  border-radius: 12px;
+}
+.archived-columns-list {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 520px;
+}
+.archived-column-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.10);
+}
+.archived-column-title {
+  font-weight: 900;
+  color: #e7eaf6;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.archived-restore-btn {
+  background: #38B2AC;
+  color: #062826;
+  font-weight: 900;
+  border-radius: 12px;
+}
+
 .kanban-card-list {
   margin-top: 5px;
   flex: 1;
