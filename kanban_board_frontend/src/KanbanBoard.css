@@ -507,6 +507,37 @@
   box-shadow: 0 1px 4px rgba(0,0,0,0.06);
 }
 
+/* Interactive CR toggle on the card face (always shown, visually indicates on/off) */
+.kanban-cr-tag-toggle {
+  cursor: pointer;
+  user-select: none;
+  appearance: none;
+  -webkit-appearance: none;
+  outline: none;
+  transition: transform 0.06s ease, background 0.14s ease, border-color 0.14s ease, opacity 0.14s ease;
+}
+.kanban-cr-tag-toggle:active {
+  transform: translateY(1px);
+}
+.kanban-cr-tag-toggle.is-off {
+  opacity: 0.42;
+  background: rgba(255,255,255,0.62);
+  border-color: rgba(0,0,0,0.12);
+}
+.kanban-cr-tag-toggle.is-on {
+  opacity: 1;
+  background: #ffffff;
+  border-color: rgba(0,0,0,0.22);
+}
+
+/* Summary view: CR tag needs a touch of spacing and slightly smaller size */
+.summary-cr-tag {
+  margin-left: 8px;
+  transform: translateY(-0.5px);
+  font-size: 0.72rem;
+  padding: 1px 6px;
+}
+
 /* Icon/Action buttons themed for modal */
 .kanban-card-editbtn,
 .kanban-card-delbtn {

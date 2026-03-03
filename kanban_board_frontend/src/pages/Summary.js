@@ -236,7 +236,14 @@ export default function Summary() {
                       aria-hidden
                       style={{ background: getStatusDotColor(card.status) }}
                     />
-                    <span className="summary-col-card-title">{card.feature}</span>
+                    <span className="summary-col-card-title">
+                      {card.feature}
+                      {card.customer_requested && (
+                        <span className="kanban-cr-tag summary-cr-tag" aria-label="Customer Requested" title="Customer Requested">
+                          CR
+                        </span>
+                      )}
+                    </span>
                     {card.assignee && (
                       <span className="summary-col-assignee" title="Assignee">
                         @{card.assignee}

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import ReactDOM from 'react-dom';
 import { useKanban } from '../KanbanContext';
 import { useFeedback } from '../KanbanBoard';
@@ -27,6 +27,24 @@ function Pill({ value, type }) {
   }
   return <span className={className}>{value}</span>;
 }
+
+/**
+ * Flow name: CustomerRequestedToggleFlow
+ *
+ * Contract:
+ * - Inputs:
+ *   - cardId: string|number (required)
+ *   - desired: boolean (required) the new value for customer_requested
+ * - Output: Promise<void>
+ * - Errors:
+ *   - Surfaces errors to user via toast, logs to console with flow name + cardId
+ * - Side effects:
+ *   - Persists the flag via KanbanContext.updateCard (Supabase update behind the scenes)
+ *
+ * Invariants:
+ * - `customer_requested` is always written as a boolean.
+ * - Clicks on the toggle must not open the card modal.
+ */
 
 // Modal for card detail/expanded view+edit using React Portal
 function Modal({ children, onClose }) {
@@ -71,6 +89,24 @@ function KanbanCard({ card, isCompact = false }) {
     // Persisted boolean flag (Supabase column: kanban_cards.customer_requested)
     customer_requested: !!card.customer_requested,
   });
+
+  const { showToast } = useFeedback();
+
+  const isCustomerRequested = useMemo(() => !!card.customer_requested, [card.customer_requested]);
+
+  const runCustomerRequestedToggleFlow = useCallback(async (desired) => {
+    try {
+      // eslint-disable-next-line no-console
+      console.log('[CustomerRequestedToggleFlow] start', { cardId: card.id, desired });
+      await updateCard(card.id, { customer_requested: !!desired });
+      // eslint-disable-next-line no-console
+      console.log('[CustomerRequestedToggleFlow] success', { cardId: card.id, desired });
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('[CustomerRequestedToggleFlow] failure', { cardId: card.id, desired, err });
+      showToast && showToast(`Failed to update CR flag: ${err?.message || err}`, 'error');
+    }
+  }, [card.id, showToast, updateCard]);
 
   // Determine card color class (status primary, then priority)
   function getCardColorClass() {
@@ -129,7 +165,6 @@ function KanbanCard({ card, isCompact = false }) {
   // PUBLIC_INTERFACE
   const [deleteError, setDeleteError] = useState(null);
   const [deletionConfirm, setDeletionConfirm] = useState(false);
-  const { showToast } = useFeedback();
 
   const handleDelete = async () => {
     setDeletionConfirm(true);
@@ -168,10 +203,41 @@ function KanbanCard({ card, isCompact = false }) {
     return '#CFCFD4';
   }
 
-  function renderCustomerRequestedTag() {
-    if (!card.customer_requested) return null;
+  function renderCustomerRequestedTag({ interactive } = { interactive: false }) {
+    const title = interactive
+      ? (isCustomerRequested ? 'Click to unmark Customer Requested' : 'Click to mark Customer Requested')
+      : 'Customer Requested';
+
+    // Interactive mode: always show the control so users can toggle directly on the card face.
+    if (interactive) {
+      return (
+        <button
+          type="button"
+          className={`kanban-cr-tag kanban-cr-tag-toggle ${isCustomerRequested ? 'is-on' : 'is-off'}`}
+          aria-label={isCustomerRequested ? 'Customer Requested: On (click to turn off)' : 'Customer Requested: Off (click to turn on)'}
+          aria-pressed={isCustomerRequested}
+          title={title}
+          onClick={(e) => {
+            // Don't open modal; the card container has onClick=openModal.
+            e.preventDefault();
+            e.stopPropagation();
+            runCustomerRequestedToggleFlow(!isCustomerRequested);
+          }}
+          onMouseDown={(e) => {
+            // Prevent DnD drag initiation when toggling.
+            e.preventDefault();
+            e.stopPropagation();
+          }}
+        >
+          CR
+        </button>
+      );
+    }
+
+    // Display-only mode: only show if it's enabled.
+    if (!isCustomerRequested) return null;
     return (
-      <span className="kanban-cr-tag" aria-label="Customer Requested" title="Customer Requested">
+      <span className="kanban-cr-tag" aria-label="Customer Requested" title={title}>
         CR
       </span>
     );
@@ -196,7 +262,7 @@ function KanbanCard({ card, isCompact = false }) {
             />
             <div className="kanban-card-title-prominent" style={{ marginBottom: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
               <span>{card.feature}</span>
-              {renderCustomerRequestedTag()}
+              {renderCustomerRequestedTag({ interactive: true })}
             </div>
           </div>
           {!isCompact && card.description && (
@@ -232,11 +298,7 @@ function KanbanCard({ card, isCompact = false }) {
                   <div className="kanban-detail-modal-title-row">
                     <span className="kanban-detail-title-prominent" style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
                       <span>{card.feature}</span>
-                      {card.customer_requested && (
-                        <span className="kanban-cr-tag" aria-label="Customer Requested" title="Customer Requested">
-                          CR
-                        </span>
-                      )}
+                      {renderCustomerRequestedTag({ interactive: false })}
                     </span>
                     <button className="kanban-card-editbtn" onClick={() => setEdit(true)} title="Edit">✎</button>
                     <button
