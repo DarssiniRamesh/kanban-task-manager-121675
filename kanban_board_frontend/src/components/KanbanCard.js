@@ -68,6 +68,8 @@ function KanbanCard({ card, isCompact = false }) {
     priority: card.priority,
     status: card.status,
     due_date: card.due_date,
+    // Persisted boolean flag (Supabase column: kanban_cards.customer_requested)
+    customer_requested: !!card.customer_requested,
   });
 
   // Determine card color class (status primary, then priority)
@@ -100,15 +102,18 @@ function KanbanCard({ card, isCompact = false }) {
       priority: card.priority,
       status: card.status,
       due_date: card.due_date,
+      customer_requested: !!card.customer_requested,
     });
     setModalOpen(true);
     setEdit(false);
   };
 
   const handleChange = (e) => {
+    const { name, type, checked, value } = e.target;
     setFields(f => ({
       ...f,
-      [e.target.name]: e.target.value
+      // Invariant: booleans stay booleans in state so updateCard writes correct type to Supabase.
+      [name]: type === 'checkbox' ? !!checked : value
     }));
   };
 
@@ -163,6 +168,15 @@ function KanbanCard({ card, isCompact = false }) {
     return '#CFCFD4';
   }
 
+  function renderCustomerRequestedTag() {
+    if (!card.customer_requested) return null;
+    return (
+      <span className="kanban-cr-tag" aria-label="Customer Requested" title="Customer Requested">
+        CR
+      </span>
+    );
+  }
+
   // Inline Card View (respects compact mode) - now as a renderer function to avoid ReferenceError
   function renderInlineCard() {
     return (
@@ -180,8 +194,9 @@ function KanbanCard({ card, isCompact = false }) {
               title={card.status || 'Status'}
               style={{ background: getStatusDotColor() }}
             />
-            <div className="kanban-card-title-prominent" style={{ marginBottom: 0 }}>
-              {card.feature}
+            <div className="kanban-card-title-prominent" style={{ marginBottom: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span>{card.feature}</span>
+              {renderCustomerRequestedTag()}
             </div>
           </div>
           {!isCompact && card.description && (
@@ -215,7 +230,14 @@ function KanbanCard({ card, isCompact = false }) {
               <>
                 <div className="kanban-detail-prominent-header">
                   <div className="kanban-detail-modal-title-row">
-                    <span className="kanban-detail-title-prominent">{card.feature}</span>
+                    <span className="kanban-detail-title-prominent" style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
+                      <span>{card.feature}</span>
+                      {card.customer_requested && (
+                        <span className="kanban-cr-tag" aria-label="Customer Requested" title="Customer Requested">
+                          CR
+                        </span>
+                      )}
+                    </span>
                     <button className="kanban-card-editbtn" onClick={() => setEdit(true)} title="Edit">✎</button>
                     <button
                       className="kanban-card-delbtn"
@@ -292,6 +314,32 @@ function KanbanCard({ card, isCompact = false }) {
                     <option value="On Hold">On Hold</option>
                   </select>
                   <input name="due_date" type="date" value={fields.due_date||""} onChange={handleChange}/>
+                  <label
+                    className="kanban-cr-toggle"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      padding: '6px 8px',
+                      borderRadius: 8,
+                      border: '1.5px solid var(--input-border)',
+                      background: 'var(--input-bg)',
+                      color: 'var(--color-text-main, #292010)',
+                      fontWeight: 800,
+                      userSelect: 'none'
+                    }}
+                    title="Mark this card as customer requested"
+                  >
+                    <input
+                      type="checkbox"
+                      name="customer_requested"
+                      checked={!!fields.customer_requested}
+                      onChange={handleChange}
+                      aria-label="Customer requested"
+                      style={{ transform: 'translateY(0.5px)' }}
+                    />
+                    Customer Requested
+                  </label>
                 </div>
                 <textarea name="description" value={fields.description||""} onChange={handleChange} placeholder="Description"/>
                 <textarea name="notes" value={fields.notes||""} onChange={handleChange} placeholder="Notes"/>

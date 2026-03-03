@@ -490,6 +490,23 @@
   padding-bottom: 3px;
 }
 
+/* Clear, bold CR tag displayed next to the card title when customer_requested=true */
+.kanban-cr-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 2px solid rgba(0,0,0,0.18);
+  background: #ffffff;
+  color: #000000;
+  font-weight: 900;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  line-height: 1.2;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+
 /* Icon/Action buttons themed for modal */
 .kanban-card-editbtn,
 .kanban-card-delbtn {
