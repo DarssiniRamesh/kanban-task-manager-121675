@@ -77,7 +77,13 @@ function CardList({ column, cards: colCardsProp, isCompact = false }) {
             if (assigneeValue) addKnownAssignee(assigneeValue);
           } catch { /* ignore storage issues */ }
         }}>
-          <input name="feature" placeholder="Feature/Title" required autoComplete="off"/>
+          <input
+            name="feature"
+            placeholder="Feature/Title"
+            required
+            autoComplete="off"
+            defaultValue="Sample Task"
+          />
           <div className="kanban-form-grid">
             {/* Assignee with autocomplete suggestions */}
             <AssigneeAutocomplete
@@ -86,15 +92,16 @@ function CardList({ column, cards: colCardsProp, isCompact = false }) {
               className="styled-input"
               style={{ minWidth: 0 }}
               inputProps={{ 'aria-label': 'Assignee' }}
+              defaultValue="Alice"
             />
-            <select name="priority" defaultValue="" className="styled-select">
+            <select name="priority" defaultValue="High" className="styled-select">
               <option value="">Priority</option>
               <option value="Low">Low</option>
               <option value="Medium">Medium</option>
               <option value="High">High</option>
               <option value="Critical">Critical</option>
             </select>
-            <select name="status" defaultValue="" className="styled-select">
+            <select name="status" defaultValue="To Do" className="styled-select">
               <option value="">Status</option>
               <option value="To Do">To Do</option>
               <option value="In Progress">In Progress</option>
@@ -102,10 +109,25 @@ function CardList({ column, cards: colCardsProp, isCompact = false }) {
               <option value="Done">Done</option>
               <option value="On Hold">On Hold</option>
             </select>
-            <input name="due_date" type="date" className="styled-input"/>
+            <input
+              name="due_date"
+              type="date"
+              className="styled-input"
+              defaultValue="2024-01-31"
+            />
           </div>
-          <textarea name="description" placeholder="Description" className="styled-input"/>
-          <textarea name="notes" placeholder="Notes" className="styled-input"/>
+          <textarea
+            name="description"
+            placeholder="Description"
+            className="styled-input"
+            defaultValue="Description here"
+          />
+          <textarea
+            name="notes"
+            placeholder="Notes"
+            className="styled-input"
+            defaultValue="Notes here"
+          />
           <div style={{ display: "flex", gap: 8 }}>
             <button className="btn" type="submit">Add</button>
             <button className="btn" type="button" onClick={() => setAdding(false)}>Cancel</button>

@@ -21,6 +21,7 @@ import { getKnownAssignees } from '../utils/assignees';
 function AssigneeAutocomplete({
   name,
   value,
+  defaultValue,
   onChange,
   placeholder = 'Assignee',
   className,
@@ -38,11 +39,14 @@ function AssigneeAutocomplete({
     return `assignee-datalist-${suffix}`;
   }, [idSuffix, name]);
 
+  const isControlled = value !== undefined;
+
   return (
     <>
       <input
         name={name}
-        value={value}
+        value={isControlled ? value : undefined}
+        defaultValue={isControlled ? undefined : defaultValue}
         onChange={onChange}
         placeholder={placeholder}
         autoComplete="off"
