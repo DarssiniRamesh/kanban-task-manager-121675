@@ -26,7 +26,7 @@ function downloadExcelTemplate() {
  *  - onToggleFullscreen?: function to toggle fullscreen mode for Product page
  *  - isFullscreen?: boolean to indicate current fullscreen state
  */
-function Toolbar({ onToggleFullscreen, isFullscreen }) {
+function Toolbar({ onToggleFullscreen, isFullscreen, crOnly, onToggleCrOnly }) {
   const { addColumn, bulkInsertCards, columns } = useKanban();
   const inputRef = useRef();
   const { showToast } = useFeedback();
@@ -164,6 +164,28 @@ function Toolbar({ onToggleFullscreen, isFullscreen }) {
         >
           {isCompact ? 'Expand' : 'Shorten'}
         </button>
+
+        {typeof onToggleCrOnly === 'function' && (
+          <button
+            type="button"
+            className="btn"
+            onClick={onToggleCrOnly}
+            aria-pressed={!!crOnly}
+            aria-label={crOnly ? 'Disable CR-only filter' : 'Enable CR-only filter'}
+            title={crOnly ? 'CR-only filter is ON (click to turn off)' : 'CR-only filter is OFF (click to turn on)'}
+            style={{
+              marginLeft: 8,
+              background: crOnly ? 'rgba(56, 178, 172, 0.22)' : undefined,
+              outline: crOnly ? '2px solid rgba(56, 178, 172, 0.65)' : undefined,
+              color: crOnly ? '#bffbf6' : undefined,
+              fontWeight: 900,
+              letterSpacing: '0.06em',
+            }}
+          >
+            CR
+          </button>
+        )}
+
         <label className="btn" style={{ marginLeft: 8 }}>
           Bulk Upload Excel
           <input

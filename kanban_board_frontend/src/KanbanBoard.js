@@ -225,10 +225,12 @@ function KanbanBoardInner() {
         <Toolbar
           onToggleFullscreen={() => setFullScreen(v => !v)}
           isFullscreen={fullScreen}
+          crOnly={!!filters.crOnly}
+          onToggleCrOnly={() => setFilters((prev) => ({ ...prev, crOnly: !prev.crOnly }))}
         />
       )}
       {!fullScreen && <StatusSummary />}
-      {!fullScreen && <FilterPanel onFiltersChange={setFilters} />}
+      {!fullScreen && <FilterPanel filters={filters} onFiltersChange={setFilters} />}
 
       {/* Exit Full Screen floating button - only visible in fullscreen mode */}
       {fullScreen && (

@@ -51,31 +51,56 @@ function renderChips(values, getLabel, onDelete) {
   );
 }
 
+const DEFAULT_FILTERS = {
+  assignees: [],
+  statuses: [],
+  priorities: [],
+  columns: [],
+  dueFrom: "",
+  dueTo: "",
+  crOnly: false,
+};
+
 // PUBLIC_INTERFACE
 /**
  * Minimal, modern, MUI-powered filter panel for Kanban board.
- * Assignee, Status, Priority, Column filters use <Select multiple> w/ checkboxes, chips for tag display,
- * and searchable typeahead drop-down (MUI Autocomplete).
+ *
+ * Supports both controlled and uncontrolled usage:
+ * - Controlled: pass `filters` and `onFiltersChange`.
+ * - Uncontrolled: omit `filters`; internal state is used and still emits via `onFiltersChange`.
+ *
+ * Props:
+ * - filters?: { assignees, statuses, priorities, columns, dueFrom, dueTo, crOnly }
+ * - onFiltersChange?: (nextFilters) => void
  */
-export default function FilterPanel({ onFiltersChange }) {
+export default function FilterPanel({ filters: controlledFilters, onFiltersChange }) {
   const { cards, activeColumns } = useKanban();
-  const theme = useTheme();
+  const theme = useTheme(); // kept for compatibility with existing styling approach
 
-  // Filter state
-  const [filters, setFilters] = useState({
-    assignees: [],
-    statuses: [],
-    priorities: [],
-    columns: [],
-    dueFrom: "",
-    dueTo: "",
-    crOnly: false,
-  });
+  const isControlled = controlledFilters != null;
 
-  React.useEffect(() => {
-    if (onFiltersChange) onFiltersChange(filters);
-    // eslint-disable-next-line
-  }, [filters]);
+  // Uncontrolled internal state fallback (used only when filters prop is not provided)
+  const [uncontrolledFilters, setUncontrolledFilters] = useState(DEFAULT_FILTERS);
+
+  // Single source of truth inside this component
+  const filters = isControlled ? controlledFilters : uncontrolledFilters;
+
+  /**
+   * Update filters.
+   * - In uncontrolled mode: updates internal state.
+   * - In controlled mode: only emits changes.
+   */
+  const setFilters = React.useCallback(
+    (updater) => {
+      const next = typeof updater === "function" ? updater(filters) : updater;
+
+      if (!isControlled) {
+        setUncontrolledFilters(next);
+      }
+      if (onFiltersChange) onFiltersChange(next);
+    },
+    [filters, isControlled, onFiltersChange]
+  );
 
   // Build options
   const assigneeOptions = useMemo(
@@ -94,16 +119,6 @@ export default function FilterPanel({ onFiltersChange }) {
     () => (activeColumns || []).map((col) => ({ id: col.id, title: col.title })),
     [activeColumns]
   );
-
-  // Change handlers for filters
-  function handleSelectChange(field) {
-    return (event) => {
-      setFilters((prev) => ({
-        ...prev,
-        [field]: event.target.value,
-      }));
-    };
-  }
 
   function handleChipDelete(field, value) {
     setFilters((prev) => ({
@@ -128,15 +143,7 @@ export default function FilterPanel({ onFiltersChange }) {
   }
 
   function resetFilters() {
-    setFilters({
-      assignees: [],
-      priorities: [],
-      statuses: [],
-      columns: [],
-      dueFrom: "",
-      dueTo: "",
-      crOnly: false,
-    });
+    setFilters(DEFAULT_FILTERS);
   }
 
   function handleDateChange(type, val) {
@@ -157,7 +164,11 @@ export default function FilterPanel({ onFiltersChange }) {
     );
     filters.columns.forEach((colId) => {
       const col = columnOptions.find((c) => c.id === colId);
-      chips.push({ label: col ? col.title : colId, field: "columns", value: colId });
+      chips.push({
+        label: col ? col.title : colId,
+        field: "columns",
+        value: colId,
+      });
     });
     if (filters.dueFrom)
       chips.push({ label: `Due ≥ ${filters.dueFrom}`, field: "dueFrom" });
@@ -166,21 +177,7 @@ export default function FilterPanel({ onFiltersChange }) {
     return chips;
   }
 
-  // Helpers for getting option label for columns
-  const getColumnLabel = (id) =>
-    (columnOptions.find((col) => col.id === id) || {}).title || id;
-
-  // Min width + font for minimal, modern look
-  const selectSx = {
-    minWidth: 86,
-    maxWidth: { xs: 150, sm: 200 },
-    fontSize: ".98em",
-    bgcolor: "var(--input-bg, #222a3b)",
-    borderRadius: 1.1,
-  };
-
   // MUI Autocomplete for searchable, taggable drop-downs (assignee, etc)
-  // We'll use freeSolo=false for enforced options, and checkboxes for accessibility.
   function MultiAutocomplete(field, options, label, icon, placeholder) {
     return (
       <Autocomplete
@@ -189,8 +186,8 @@ export default function FilterPanel({ onFiltersChange }) {
           maxWidth: 200,
           "& .MuiInputBase-root": {
             bgcolor: "var(--input-bg, #232945)",
-            borderRadius: "10px"
-          }
+            borderRadius: "10px",
+          },
         }}
         multiple
         disableCloseOnSelect
@@ -206,7 +203,7 @@ export default function FilterPanel({ onFiltersChange }) {
                 bgcolor: "var(--color-bg-chip, #21384d)",
                 color: "var(--color-chip-text, #ebfdff)",
                 fontWeight: 600,
-                fontSize: ".97em"
+                fontSize: ".97em",
               }}
               label={option}
               {...getTagProps({ index })}
@@ -238,7 +235,7 @@ export default function FilterPanel({ onFiltersChange }) {
                   {icon}
                 </Box>
               ),
-              sx: { bgcolor: "var(--input-bg, #252B38)" }
+              sx: { bgcolor: "var(--input-bg, #252B38)" },
             }}
             sx={{
               "& .MuiOutlinedInput-root": {
@@ -247,7 +244,7 @@ export default function FilterPanel({ onFiltersChange }) {
                 py: 0.3,
                 background: "var(--input-bg, #212a3b)",
                 fontSize: ".97em",
-              }
+              },
             }}
           />
         )}
@@ -255,7 +252,6 @@ export default function FilterPanel({ onFiltersChange }) {
         disableClearable={false}
         clearOnBlur={false}
         noOptionsText="No options"
-        checkboxIcon={<Checkbox color="primary" size="small" />}
         popupIcon={null}
       />
     );
@@ -269,8 +265,8 @@ export default function FilterPanel({ onFiltersChange }) {
           maxWidth: 195,
           "& .MuiInputBase-root": {
             bgcolor: "var(--input-bg, #232945)",
-            borderRadius: "10px"
-          }
+            borderRadius: "10px",
+          },
         }}
         multiple
         disableCloseOnSelect
@@ -292,7 +288,7 @@ export default function FilterPanel({ onFiltersChange }) {
                 bgcolor: "var(--color-bg-chip,#21384d)",
                 color: "var(--color-chip-text,#ebfdff)",
                 fontWeight: 600,
-                fontSize: ".97em"
+                fontSize: ".97em",
               }}
               label={option.title}
               {...getTagProps({ index })}
@@ -324,7 +320,7 @@ export default function FilterPanel({ onFiltersChange }) {
                   <ViewColumnIcon fontSize="small" />
                 </Box>
               ),
-              sx: { bgcolor: "var(--input-bg, #252B38)" }
+              sx: { bgcolor: "var(--input-bg, #252B38)" },
             }}
             sx={{
               "& .MuiOutlinedInput-root": {
@@ -333,7 +329,7 @@ export default function FilterPanel({ onFiltersChange }) {
                 py: 0.3,
                 background: "var(--input-bg, #212a3b)",
                 fontSize: ".97em",
-              }
+              },
             }}
           />
         )}
@@ -352,11 +348,14 @@ export default function FilterPanel({ onFiltersChange }) {
       className="kanban-filter-panel"
       aria-label="Kanban Filter Panel"
       role="region"
-      style={{ padding: "7px 0 3px 0", background: "var(--color-bg-surface,#222937)" }}
+      style={{
+        padding: "7px 0 3px 0",
+        background: "var(--color-bg-surface,#222937)",
+      }}
     >
       <form
         className="filter-row"
-        onSubmit={e => e.preventDefault()}
+        onSubmit={(e) => e.preventDefault()}
         spellCheck={false}
         autoComplete="off"
         aria-label="Kanban Filters"
@@ -378,6 +377,7 @@ export default function FilterPanel({ onFiltersChange }) {
             "Assignees"
           )}
         </div>
+
         {/* PRIORITY multi-select */}
         <div style={{ minWidth: 0, display: "flex", alignItems: "center", gap: 6 }}>
           {MultiAutocomplete(
@@ -388,6 +388,7 @@ export default function FilterPanel({ onFiltersChange }) {
             "Priority"
           )}
         </div>
+
         {/* STATUS multi-select */}
         <div style={{ minWidth: 0, display: "flex", alignItems: "center", gap: 6 }}>
           {MultiAutocomplete(
@@ -398,22 +399,27 @@ export default function FilterPanel({ onFiltersChange }) {
             "Status"
           )}
         </div>
+
         {/* COLUMN multi-select */}
         <div style={{ minWidth: 0, display: "flex", alignItems: "center", gap: 6 }}>
           {ColumnMultiAutocomplete()}
         </div>
+
         {/* Due Date Range */}
         <div
           style={{
-            minWidth: 0, display: "flex", alignItems: "center", gap: 4,
-            marginLeft: 10
+            minWidth: 0,
+            display: "flex",
+            alignItems: "center",
+            gap: 4,
+            marginLeft: 10,
           }}
         >
           <EventIcon fontSize="small" style={{ color: "#c6fa94", marginRight: 2 }} />
           <input
             type="date"
             value={filters.dueFrom}
-            onChange={e => handleDateChange("dueFrom", e.target.value)}
+            onChange={(e) => handleDateChange("dueFrom", e.target.value)}
             className="filter-date"
             aria-label="Due date from"
             style={{
@@ -423,14 +429,16 @@ export default function FilterPanel({ onFiltersChange }) {
               height: 32,
               background: "var(--input-bg,#212a3b)",
               color: "var(--color-text-main,#fff)",
-              border: "1.5px solid var(--input-border,#38B2AC)"
+              border: "1.5px solid var(--input-border,#38B2AC)",
             }}
           />
-          <span aria-hidden style={{ color: "#888", fontWeight: 400, margin: "0 2px" }}>–</span>
+          <span aria-hidden style={{ color: "#888", fontWeight: 400, margin: "0 2px" }}>
+            –
+          </span>
           <input
             type="date"
             value={filters.dueTo}
-            onChange={e => handleDateChange("dueTo", e.target.value)}
+            onChange={(e) => handleDateChange("dueTo", e.target.value)}
             className="filter-date"
             aria-label="Due date to"
             style={{
@@ -440,10 +448,11 @@ export default function FilterPanel({ onFiltersChange }) {
               height: 32,
               background: "var(--input-bg,#212a3b)",
               color: "var(--color-text-main,#fff)",
-              border: "1.5px solid var(--input-border,#38B2AC)"
+              border: "1.5px solid var(--input-border,#38B2AC)",
             }}
           />
         </div>
+
         {/* CR-only toggle */}
         <label
           style={{
@@ -466,9 +475,7 @@ export default function FilterPanel({ onFiltersChange }) {
           <input
             type="checkbox"
             checked={!!filters.crOnly}
-            onChange={(e) =>
-              setFilters((prev) => ({ ...prev, crOnly: e.target.checked }))
-            }
+            onChange={(e) => setFilters((prev) => ({ ...prev, crOnly: e.target.checked }))}
             aria-label="Show only Customer Requested cards"
             style={{ width: 16, height: 16, accentColor: "var(--primary,#38B2AC)" }}
           />
@@ -488,13 +495,14 @@ export default function FilterPanel({ onFiltersChange }) {
             marginLeft: 9,
             fontSize: ".98em",
             padding: "7px 15px",
-            borderRadius: "12px"
+            borderRadius: "12px",
           }}
           onClick={resetFilters}
         >
           Reset
         </button>
       </form>
+
       {/* Render active chips for any field */}
       <div
         className="filter-chipbar"
@@ -530,12 +538,12 @@ export default function FilterPanel({ onFiltersChange }) {
               title="Remove filter"
               aria-label={`Remove ${chip.label}`}
               onClick={() =>
-                chip.value
-                  ? handleChipDelete(chip.field, chip.value)
-                  : clearFilter(chip.field)
+                chip.value ? handleChipDelete(chip.field, chip.value) : clearFilter(chip.field)
               }
               style={{ marginLeft: "4px", fontSize: ".95em", color: "#ef8585" }}
-            >×</button>
+            >
+              ×
+            </button>
           </span>
         ))}
       </div>
