@@ -14,10 +14,22 @@ import FullscreenExitIcon from '@mui/icons-material/FullscreenExit';
  * - Displays each Kanban column as a vertical panel (side-by-side) with minimal UI.
  * - Allows drag & drop reordering of columns (persisted via KanbanContext.reorderColumns).
  * - Provides controls to minimize/expand each column to customize the presentation.
+ * - Respects UI-only archived column state from KanbanContext:
+ *    - Archived columns are hidden by default (matching the main board behavior).
+ *    - Optional "Archived columns" section can render archived columns and allow unarchive.
  * - Keeps the application navigation header visible (Dashboard, Product).
  */
 export default function Summary() {
-  const { columns, cards, isLoading, error, reorderColumns } = useKanban();
+  const {
+    columns,
+    activeColumns,
+    archivedColumns,
+    cards,
+    isLoading,
+    error,
+    reorderColumns,
+    unarchiveColumn,
+  } = useKanban();
 
   // Fullscreen toggle state (persisted)
   const [fullScreen, setFullScreen] = React.useState(() => {
@@ -71,28 +83,44 @@ export default function Summary() {
   }, [collapsed]);
 
   const toggleCollapsed = (id) => {
-    setCollapsed(prev => ({ ...prev, [id]: !prev[id] }));
+    setCollapsed((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
-  // Cards by column, sorted by position
+  // Archived columns visibility in Summary (collapsed by default)
+  const [showArchived, setShowArchived] = React.useState(false);
+
+  /**
+   * Summary should match main board behavior:
+   * - show active columns only by default
+   * - hide cards belonging to archived columns implicitly (by not rendering those columns)
+   */
+  const summaryColumns = activeColumns || (columns || []);
+
+  // Cards by column, sorted by position.
+  // IMPORTANT: Only index cards for columns that are actually rendered in Summary.
   const cardsByColumn = React.useMemo(() => {
     const map = new Map();
-    (columns || []).forEach((c) => map.set(c.id, []));
+    (summaryColumns || []).forEach((c) => map.set(c.id, []));
     (cards || []).forEach((c) => {
       if (map.has(c.column_id)) map.get(c.column_id).push(c);
     });
-    map.forEach((list) =>
-      list.sort((a, b) => (a.position || 0) - (b.position || 0))
-    );
+    map.forEach((list) => list.sort((a, b) => (a.position || 0) - (b.position || 0)));
     return map;
-  }, [columns, cards]);
+  }, [summaryColumns, cards]);
 
-  // Move column via context API
+  // Move column via context API (reorders the rendered set; matches main board which reorders active columns)
   const moveColumn = (fromIdx, toIdx) => {
-    if (!columns || fromIdx === toIdx || fromIdx < 0 || toIdx < 0 || fromIdx >= columns.length || toIdx >= columns.length) {
+    if (
+      !summaryColumns ||
+      fromIdx === toIdx ||
+      fromIdx < 0 ||
+      toIdx < 0 ||
+      fromIdx >= summaryColumns.length ||
+      toIdx >= summaryColumns.length
+    ) {
       return;
     }
-    const reordered = [...columns];
+    const reordered = [...summaryColumns];
     const [removed] = reordered.splice(fromIdx, 1);
     reordered.splice(toIdx, 0, removed);
     const ordered = reordered.map((col, i) => ({ id: col.id, position: i + 1 }));
@@ -128,7 +156,7 @@ export default function Summary() {
 
     const GAP = 8; // default gap in px; will be reduced via density class
     const containerWidth = el.clientWidth || 0;
-    const count = (columns || []).length || 0;
+    const count = (summaryColumns || []).length || 0;
     if (count === 0 || containerWidth === 0) return;
 
     const perCol = containerWidth / count - (GAP * (count - 1)) / Math.max(1, count);
@@ -146,19 +174,19 @@ export default function Summary() {
       // grid template is passed inline for precision, but we expose a variable for CSS fallback
       '--summary-grid': `repeat(${count}, minmax(0, 1fr))`,
     });
-  }, [fullScreen, columns, computeScale]);
+  }, [fullScreen, summaryColumns, computeScale]);
 
   React.useEffect(() => {
     if (!fullScreen) return;
     const onResize = () => {
       // retrigger effect by cloning cssVars to force recalculation
-      setCssVars(v => ({ ...v }));
+      setCssVars((v) => ({ ...v }));
     };
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, [fullScreen]);
 
-  function DraggableSummaryColumn({ column, index, totalColumns }) {
+  function DraggableSummaryColumn({ column, index }) {
     // Drag source
     const [{ isDragging }, drag] = useDrag({
       type: COLUMN_TYPE,
@@ -195,7 +223,7 @@ export default function Summary() {
         aria-label={`Column ${column.title}`}
         style={{
           opacity: isDragging ? 0.35 : 1,
-          outline: (isOver && canDrop) ? '3px solid #38B2AC' : undefined,
+          outline: isOver && canDrop ? '3px solid #38B2AC' : undefined,
           boxShadow: isDragging ? '0 2px 18px rgba(56,178,172,0.35)' : undefined,
         }}
         tabIndex={0}
@@ -206,7 +234,9 @@ export default function Summary() {
         <header className="summary-col-header">
           <div className="summary-col-title" title={column.title}>
             <span className="summary-col-title-text">{column.title}</span>
-            <span className="summary-col-count" title="Card count">{items.length}</span>
+            <span className="summary-col-count" title="Card count">
+              {items.length}
+            </span>
           </div>
           <div className="summary-col-actions">
             <button
@@ -231,11 +261,7 @@ export default function Summary() {
                     className={`summary-col-card ${getStatusClass(card.status)}`}
                     title={card.description || card.feature}
                   >
-                    <span
-                      className="summary-chip-dot"
-                      aria-hidden
-                      style={{ background: getStatusDotColor(card.status) }}
-                    />
+                    <span className="summary-chip-dot" aria-hidden style={{ background: getStatusDotColor(card.status) }} />
                     <span className="summary-col-card-title">
                       {card.feature}
                       {card.customer_requested && (
@@ -286,23 +312,41 @@ export default function Summary() {
   if (isLoading) return <div className="kanban-loading">Loading...</div>;
   if (error) return <div className="kanban-error">{error}</div>;
 
+  const archivedCount = (archivedColumns || []).length;
+
   return (
     <div className="summary-page" style={fullScreen ? { fontSize: `calc(1rem * var(--summary-scale, 1))` } : undefined}>
       <div className="container summary-container" style={cssVars}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
           <div>
-            <h1 className="page-title" style={{ marginTop: 8, marginBottom: 6 }}>Board Summary</h1>
+            <h1 className="page-title" style={{ marginTop: 8, marginBottom: 6 }}>
+              Board Summary
+            </h1>
             <p className="page-subtitle" style={{ marginBottom: 12 }}>
               Presentation view (clean, draggable columns). Tip: Press "m" to minimize columns.
             </p>
           </div>
-          <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {archivedCount > 0 && (
+              <button
+                type="button"
+                className="summary-col-actionbtn"
+                aria-label={showArchived ? 'Hide archived columns' : 'Show archived columns'}
+                title={showArchived ? 'Hide archived columns' : 'Show archived columns'}
+                onClick={() => setShowArchived((v) => !v)}
+                style={{ padding: '6px 10px', display: 'inline-flex', alignItems: 'center', gap: 8 }}
+              >
+                <span style={{ fontWeight: 800 }}>{showArchived ? 'Hide' : 'Show'} Archived</span>
+                <span style={{ opacity: 0.85 }}>({archivedCount})</span>
+              </button>
+            )}
+
             <button
               type="button"
               className="summary-col-actionbtn"
               aria-label={fullScreen ? 'Exit fullscreen' : 'Enter fullscreen'}
               title={fullScreen ? 'Exit fullscreen' : 'Enter fullscreen'}
-              onClick={() => setFullScreen(v => !v)}
+              onClick={() => setFullScreen((v) => !v)}
               style={{ padding: '6px 10px', display: 'inline-flex', alignItems: 'center', gap: 6 }}
             >
               {fullScreen ? <FullscreenExitIcon fontSize="small" /> : <FullscreenIcon fontSize="small" />}
@@ -310,6 +354,58 @@ export default function Summary() {
             </button>
           </div>
         </div>
+
+        {/* Archived columns list (UI-only state) */}
+        {showArchived && archivedCount > 0 && (
+          <div
+            className="archived-columns-panel"
+            aria-label="Archived columns"
+            style={{
+              margin: '10px 0 14px',
+              padding: '10px 12px',
+              borderRadius: 10,
+              border: '1px solid rgba(255,255,255,0.10)',
+              background: 'rgba(0,0,0,0.10)',
+            }}
+          >
+            <div style={{ fontWeight: 800, marginBottom: 8 }}>Archived columns</div>
+            <div style={{ display: 'grid', gap: 8 }}>
+              {(archivedColumns || []).map((col) => (
+                <div
+                  key={col.id}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 10,
+                    padding: '8px 10px',
+                    borderRadius: 8,
+                    background: 'rgba(255,255,255,0.04)',
+                  }}
+                >
+                  <div style={{ fontWeight: 700, opacity: 0.92 }}>{col.title}</div>
+                  <button
+                    type="button"
+                    className="summary-col-actionbtn"
+                    onClick={async () => {
+                      // UI-only unarchive (no toast here to keep summary clean)
+                      try {
+                        await unarchiveColumn(col.id);
+                      } catch {
+                        // ignore
+                      }
+                    }}
+                    aria-label={`Unarchive column ${col.title}`}
+                    title="Restore column"
+                    style={{ padding: '6px 10px' }}
+                  >
+                    Restore
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <DndProvider backend={HTML5Backend}>
           <div
@@ -322,19 +418,14 @@ export default function Summary() {
                 ? {
                     display: 'grid',
                     gridAutoFlow: 'column',
-                    gridTemplateColumns: `repeat(${(columns || []).length || 0}, minmax(0, 1fr))`,
+                    gridTemplateColumns: `repeat(${(summaryColumns || []).length || 0}, minmax(0, 1fr))`,
                     gap: 'var(--summary-gap, 8px)',
                   }
                 : undefined
             }
           >
-            {(columns || []).map((col, idx) => (
-              <DraggableSummaryColumn
-                key={col.id}
-                column={col}
-                index={idx}
-                totalColumns={columns.length}
-              />
+            {(summaryColumns || []).map((col, idx) => (
+              <DraggableSummaryColumn key={col.id} column={col} index={idx} />
             ))}
           </div>
         </DndProvider>
