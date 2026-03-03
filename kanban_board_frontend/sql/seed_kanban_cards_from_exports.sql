@@ -1,16 +1,38 @@
 -- Seed script generated from attachments/kanban_cards_export*.csv
 -- Target: Neon/Postgres (same schema as supabase_schema_kanban.sql)
 --
--- What this script does:
+-- ============================================================
+-- How to execute on Neon (WITHOUT embedding credentials)
+-- ============================================================
+-- This repo keeps the psql connection string in:
+--   ./db_connection.txt
+-- That file typically contains a single line like:
+--   psql "postgresql://...."
+--
+-- Run the seed SQL using that connection command, without copying credentials:
+--
+--   cd kanban_board_frontend
+--   $(cat db_connection.txt) -v ON_ERROR_STOP=1 -f sql/seed_kanban_cards_from_exports.sql
+--
+-- Optional: echo the command you'll run (still avoid printing credentials):
+--   echo "Running psql from db_connection.txt against sql/seed_kanban_cards_from_exports.sql"
+--
+-- Notes:
+--  - `-v ON_ERROR_STOP=1` makes psql stop on the first error (recommended for seeding).
+--  - The SQL below is designed to be idempotent: re-running it will NOT create duplicates.
+--
+-- ============================================================
+-- What this script does
+-- ============================================================
 --  1) Ensures pgcrypto exists (for gen_random_uuid if needed elsewhere)
 --  2) Creates 3 baseline columns (To Do, In Progress, Done) if they don't exist
---  3) Inserts/Upserts cards from exports (deduplicated by id) and assigns:
+--  3) Inserts/Upserts cards from exports and assigns:
 --       - column_id based on status
 --       - position per column (ordered by due_date asc nulls last, then feature)
 --
 -- Safe to run multiple times:
---  - columns: ON CONFLICT(title) DO UPDATE (keeps deterministic ids by title)
---  - cards:   ON CONFLICT(id) DO UPDATE (keeps data refreshed)
+--  - columns: ON CONFLICT(title) DO UPDATE (deterministic ids by title)
+--  - cards:   ON CONFLICT(id) DO UPDATE (rows refreshed, no duplicates)
 
 BEGIN;
 
@@ -60,192 +82,6 @@ SET
 -- (handles "To do" vs "To Do" seen in exports).
 WITH status_map AS (
   SELECT 'to do'::text AS status_key, 'To Do'::text AS column_title
-  UNION ALL SELECT 'to do '::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
-  UNION ALL SELECT 'to do'::text, 'To Do'
   UNION ALL SELECT 'in progress'::text, 'In Progress'::text
   UNION ALL SELECT 'done'::text, 'Done'::text
 ),
@@ -297,13 +133,13 @@ cards_raw AS (
     ('55f9ef46-8328-4a64-90c8-65ec8c729f80'::uuid, 'Website Reading Support'::text, 'Ability to read and interpret live website/application content for reverse engineering.'::text, 'Labeeb'::text, 'Code Generation and Maintenance (BUILD)'::text, 'Medium'::text, 'Done'::text, '2025-07-31'::date),
     ('67a90d03-d6b4-41fe-b460-e6549461c641'::uuid, 'Ingestion Support for Code'::text, 'Support for ingesting and indexing code from various sources into the platform.'::text, 'Esakki'::text, 'Ingestion and Inspect Phase'::text, 'High'::text, 'Done'::text, '2025-07-31'::date),
     ('9065257f-8cf2-42d3-8b05-f11252965810'::uuid, 'Code Query Implementation'::text, 'Implementation of natural language code querying across ingested codebases.'::text, 'Esakki'::text, 'Ingestion and Inspect Phase'::text, 'High'::text, 'Done'::text, '2025-07-31'::date),
-    ('0493a0ea-d13b-45ba-ba1b-6808d3753827'::uuid, 'Mobile Framework Support'::text, 'Enables code generation for mobile frameworks with live preview options.'::text, 'Raphael'::text, 'Code Gen & Maintenance (BUILD)'::text, 'High'::text, 'Done'::text, '2025-08-07'::date),
-    ('a53275dc-0d95-4357-a61e-7d7615c117c1'::uuid, 'Frontend Deployment Enhancements'::text, 'Improved deployment workflow for frontend applications and preview.'::text, 'Raphael'::text, 'Code Gen & Maintenance (BUILD)'::text, 'High'::text, 'Done'::text, '2025-08-07'::date),
-    ('54214c3a-660d-4ccc-8aa2-48fff2c9d646'::uuid, 'New Manifest UI'::text, 'Redesigned manifest management UI for easier code maintenance.'::text, 'Prasanth'::text, 'Code Gen & Maintenance (BUILD)'::text, 'Medium'::text, 'Done'::text, '2025-08-07'::date),
+    ('0493a0ea-d13b-45ba-ba1b-6808d3753827'::uuid, 'Mobile Framework Support'::text, 'Enables code generation for mobile frameworks with live preview options.'::text, 'Raphael'::text, 'Code Generation and Maintenance (BUILD)'::text, 'High'::text, 'Done'::text, '2025-08-07'::date),
+    ('a53275dc-0d95-4357-a61e-7d7615c117c1'::uuid, 'Frontend Deployment Enhancements'::text, 'Improved deployment workflow for frontend applications and preview.'::text, 'Raphael'::text, 'Code Generation and Maintenance (BUILD)'::text, 'High'::text, 'Done'::text, '2025-08-07'::date),
+    ('54214c3a-660d-4ccc-8aa2-48fff2c9d646'::uuid, 'New Manifest UI'::text, 'Redesigned manifest management UI for easier code maintenance.'::text, 'Prasanth'::text, 'Code Generation and Maintenance (BUILD)'::text, 'Medium'::text, 'Done'::text, '2025-08-07'::date),
     ('be1c036d-06e0-44d7-b992-c64e9630d4d1'::uuid, 'GitLab Code Query & Maintenance'::text, 'Query and maintain code across GitLab repositories efficiently.'::text, 'Esakki'::text, 'Ingestion and Inspect Phase'::text, 'Medium'::text, 'Done'::text, '2025-08-07'::date),
     ('67b8524c-e65f-41f5-a5d7-9033b1d3235a'::uuid, 'Kavia Help Chat Bot'::text, 'In-app help chat bot for quick support and guidance during workflows.'::text, 'Niku Singh'::text, 'Generic'::text, 'Medium'::text, 'Done'::text, '2025-08-07'::date),
     ('d68103f8-0740-4b69-9e7c-7eeab20c1c22'::uuid, 'Deployed App Dashboard'::text, 'Overview dashboard for deployed applications and their statuses.'::text, 'Babu K'::text, 'Generic'::text, 'Medium'::text, 'Done'::text, '2025-08-07'::date),
-    ('231f1ad0-a1d4-4a01-a593-98842d823c2c'::uuid, 'Manifest Setup'::text, 'Simplified process to set up project manifests for code management.'::text, 'Prasanth'::text, 'Code Gen & Maintenance (BUILD)'::text, 'Medium'::text, 'Done'::text, '2025-08-07'::date),
+    ('231f1ad0-a1d4-4a01-a593-98842d823c2c'::uuid, 'Manifest Setup'::text, 'Simplified process to set up project manifests for code management.'::text, 'Prasanth'::text, 'Code Generation and Maintenance (BUILD)'::text, 'Medium'::text, 'Done'::text, '2025-08-07'::date),
     ('6fc9cc3a-c741-4c04-9622-ac6ee8b8a026'::uuid, 'Credit Downgrade'::text, 'Enabling Auto Credit Downgrade fixes'::text, 'Nadarajan'::text, 'Generic'::text, 'High'::text, 'Done'::text, '2025-08-07'::date),
     ('e7719a56-9ac7-4a8f-846c-832fdb37fd6a'::uuid, 'GitLab OAuth Integration'::text, 'Implement OAuth authentication for private project access on GitLab repositories.'::text, 'Esakki'::text, 'Ingestion and Inspect Phase'::text, 'High'::text, 'Done'::text, '2025-08-14'::date),
     ('13c31b8f-536f-44cf-baf8-7144606703dc'::uuid, 'Manifest Edit and Validation'::text, 'Resolve overall manifest editing issues and improve accuracy across all frameworks.'::text, 'Prasanth'::text, 'Code Generation and Maintenance (BUILD)'::text, 'High'::text, 'Done'::text, '2025-08-14'::date),
@@ -372,7 +208,6 @@ cards_with_column AS (
     COALESCE(
       (SELECT column_title FROM status_map sm WHERE sm.status_key = lower(trim(cr.status))),
       CASE
-        WHEN lower(trim(cr.status)) = 'to do' THEN 'To Do'
         WHEN lower(trim(cr.status)) = 'to do' THEN 'To Do'
         WHEN lower(trim(cr.status)) = 'in progress' THEN 'In Progress'
         WHEN lower(trim(cr.status)) = 'done' THEN 'Done'
