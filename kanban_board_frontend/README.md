@@ -6,6 +6,17 @@ This project provides a minimal React template with a clean, modern UI and minim
 
 This repository is a **React frontend** that currently uses Supabase directly via `@supabase/supabase-js`.
 
+### Supabase configuration (required)
+
+This app expects the Supabase client to be configured via environment variables:
+
+- `REACT_APP_SUPABASE_URL`
+- `REACT_APP_SUPABASE_ANON_KEY`
+
+See `.env.example` for the full list of supported variables.
+
+### Neon note
+
 A **Neon Postgres** connection string (`postgresql://...`) is a secret credential and cannot be used from the browser.
 To use Neon at runtime, a backend/API service must be added to this project to securely connect to Neon and expose CRUD endpoints.
 
