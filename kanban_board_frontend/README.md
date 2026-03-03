@@ -2,6 +2,16 @@
 
 This project provides a minimal React template with a clean, modern UI and minimal dependencies.
 
+## Database note (Supabase vs Neon)
+
+This repository is a **React frontend** that currently uses Supabase directly via `@supabase/supabase-js`.
+
+A **Neon Postgres** connection string (`postgresql://...`) is a secret credential and cannot be used from the browser.
+To use Neon at runtime, a backend/API service must be added to this project to securely connect to Neon and expose CRUD endpoints.
+
+Schema alignment/migration instructions to keep Neon tables identical to the current Supabase schema are in:
+- `NEON_SCHEMA_SETUP.md`
+
 ## Features
 
 - **Lightweight**: No heavy UI frameworks - uses only vanilla CSS and React
