@@ -1,12 +1,51 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
 import { getSupabaseClient } from './kanbanSupabase';
 
 // Supabase tables: kanban_columns, kanban_cards
+// NOTE: Column archiving is UI-only (client-side state). No Supabase schema/persistence is used.
 
 const KanbanContext = createContext();
 
 export function useKanban() {
   return useContext(KanbanContext);
+}
+
+const UI_ARCHIVED_COLUMNS_STORAGE_KEY = 'kanban.ui.archivedColumnIds.v1';
+
+/**
+ * Parse archived column IDs from localStorage.
+ * Contract:
+ * - Input: window.localStorage entry value (string|null)
+ * - Output: Set<string> of column IDs
+ * - Errors: never throws (returns empty Set on parse/validation failure)
+ */
+function safeLoadArchivedColumnIds() {
+  try {
+    const raw = localStorage.getItem(UI_ARCHIVED_COLUMNS_STORAGE_KEY);
+    if (!raw) return new Set();
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return new Set();
+    const ids = parsed
+      .map(v => (v == null ? null : String(v)))
+      .filter(Boolean);
+    return new Set(ids);
+  } catch {
+    return new Set();
+  }
+}
+
+/**
+ * Persist archived column IDs to localStorage.
+ * Contract:
+ * - Input: Set<string> of column IDs
+ * - Side effect: writes localStorage; never throws
+ */
+function safeSaveArchivedColumnIds(idSet) {
+  try {
+    localStorage.setItem(UI_ARCHIVED_COLUMNS_STORAGE_KEY, JSON.stringify(Array.from(idSet)));
+  } catch {
+    // ignore (e.g., private browsing / quota / disabled storage)
+  }
 }
 
 // PUBLIC_INTERFACE
@@ -17,6 +56,43 @@ export function KanbanProvider({ children }) {
   const [cards, setCards] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  // UI-only archived state (Set of string IDs)
+  const [archivedColumnIds, setArchivedColumnIds] = useState(() => {
+    if (typeof window === 'undefined') return new Set();
+    return safeLoadArchivedColumnIds();
+  });
+
+  // Persist archived state changes
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    safeSaveArchivedColumnIds(archivedColumnIds);
+  }, [archivedColumnIds]);
+
+  /**
+   * Flow name: ColumnArchiveUiStateFlow
+   * Entrypoints: archiveColumn(id), unarchiveColumn(id), toggleColumnArchived(id, desired)
+   *
+   * Contract:
+   * - Inputs: column id (string|number); desired (boolean)
+   * - Output: null (always) to keep UI code simple; errors are surfaced via console for debug.
+   * - Side effects: updates local React state + localStorage (best-effort).
+   */
+  const toggleColumnArchived = useCallback((id, desired) => {
+    const colId = id == null ? null : String(id);
+    if (!colId) {
+      // eslint-disable-next-line no-console
+      console.warn('[ColumnArchiveUiStateFlow] Ignored toggle: missing column id', { id, desired });
+      return;
+    }
+
+    setArchivedColumnIds(prev => {
+      const next = new Set(prev);
+      if (desired) next.add(colId);
+      else next.delete(colId);
+      return next;
+    });
+  }, []);
 
   // Real-time subscription effect
   useEffect(() => {
@@ -71,41 +147,46 @@ export function KanbanProvider({ children }) {
   // Column CRUD
   const addColumn = async (title) => {
     const newPos = columns.length ? Math.max(...columns.map(c => c.position)) + 1 : 1;
-    // Explicitly set is_archived to false for backwards compatibility with older schemas.
+    // UI-only archiving: do not write is_archived (no schema dependency).
     let { error } = await supabase
       .from('kanban_columns')
-      .insert({ title, position: newPos, is_archived: false });
+      .insert({ title, position: newPos });
     await fetchAll();
     return error;
   };
 
   const updateColumn = async (id, updates) => {
-    let { error } = await supabase.from('kanban_columns').update(updates).eq('id', id);
+    // UI-only archiving: never persist is_archived even if a caller accidentally sends it.
+    const { is_archived, ...safeUpdates } = (updates || {});
+    let { error } = await supabase.from('kanban_columns').update(safeUpdates).eq('id', id);
     await fetchAll();
     return error;
   };
 
   // PUBLIC_INTERFACE
   const archiveColumn = async (id) => {
-    /** Archives a column (hides it from the board UI) while keeping it in Supabase for later restore. */
-    let { error } = await supabase.from('kanban_columns').update({ is_archived: true }).eq('id', id);
-    await fetchAll();
-    return error;
+    /** UI-only: archives a column locally (no Supabase write). */
+    toggleColumnArchived(id, true);
+    return null;
   };
 
   // PUBLIC_INTERFACE
   const unarchiveColumn = async (id) => {
-    /** Restores an archived column (shows it in the board UI again). */
-    let { error } = await supabase.from('kanban_columns').update({ is_archived: false }).eq('id', id);
-    await fetchAll();
-    return error;
+    /** UI-only: restores an archived column locally (no Supabase write). */
+    toggleColumnArchived(id, false);
+    return null;
   };
 
   const deleteColumn = async (id) => {
     let { error } = await supabase.from('kanban_columns').delete().eq('id', id);
+
+    // Keep UI-only archived state consistent if the column is deleted.
+    toggleColumnArchived(id, false);
+
     await fetchAll();
     return error;
   };
+
   const reorderColumns = async (orderedList) => {
     // Takes [{id, position}]
     // Guarantee unique/contiguous positions: 1-based index in order of orderedList
@@ -231,14 +312,25 @@ export function KanbanProvider({ children }) {
     return error;
   };
 
+  // Derive active vs archived columns purely from UI state (no backend field).
+  const activeColumns = useMemo(() => {
+    const archived = archivedColumnIds || new Set();
+    return (columns || []).filter(c => !archived.has(String(c.id)));
+  }, [columns, archivedColumnIds]);
+
+  const archivedColumns = useMemo(() => {
+    const archived = archivedColumnIds || new Set();
+    return (columns || []).filter(c => archived.has(String(c.id)));
+  }, [columns, archivedColumnIds]);
+
   // PUBLIC_INTERFACE
   return (
     <KanbanContext.Provider
       value={{
         // Keep the original `columns` for compatibility, but add helpers for UI.
         columns,
-        activeColumns: (columns || []).filter(c => !c.is_archived),
-        archivedColumns: (columns || []).filter(c => c.is_archived),
+        activeColumns,
+        archivedColumns,
         cards,
         isLoading,
         error,
