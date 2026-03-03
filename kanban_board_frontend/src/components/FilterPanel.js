@@ -69,6 +69,7 @@ export default function FilterPanel({ onFiltersChange }) {
     columns: [],
     dueFrom: "",
     dueTo: "",
+    crOnly: false,
   });
 
   React.useEffect(() => {
@@ -133,7 +134,8 @@ export default function FilterPanel({ onFiltersChange }) {
       statuses: [],
       columns: [],
       dueFrom: "",
-      dueTo: ""
+      dueTo: "",
+      crOnly: false,
     });
   }
 
@@ -442,6 +444,37 @@ export default function FilterPanel({ onFiltersChange }) {
             }}
           />
         </div>
+        {/* CR-only toggle */}
+        <label
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 8,
+            marginLeft: 10,
+            padding: "6px 10px",
+            borderRadius: 12,
+            background: "var(--input-bg,#212a3b)",
+            border: "1.5px solid var(--input-border,#38B2AC)",
+            color: "var(--color-text-main,#fff)",
+            fontWeight: 700,
+            fontSize: ".95em",
+            userSelect: "none",
+            cursor: "pointer",
+          }}
+          title="Show only cards marked Customer Requested"
+        >
+          <input
+            type="checkbox"
+            checked={!!filters.crOnly}
+            onChange={(e) =>
+              setFilters((prev) => ({ ...prev, crOnly: e.target.checked }))
+            }
+            aria-label="Show only Customer Requested cards"
+            style={{ width: 16, height: 16, accentColor: "var(--primary,#38B2AC)" }}
+          />
+          CR only
+        </label>
+
         {/* Reset Button */}
         <button
           type="button"

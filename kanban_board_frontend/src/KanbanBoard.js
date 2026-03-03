@@ -37,6 +37,11 @@ export function useExpandMode() {
  */
 function filterCardsAND(cards, filters, columns) {
   return cards.filter(c => {
+    // CR-only (Customer Requested)
+    // If enabled, only show cards explicitly marked customer_requested === true.
+    // Treat missing/false as not customer requested.
+    if (filters.crOnly && c.customer_requested !== true) return false;
+
     // Assignee multi-filter (intersection)
     if (
       filters.assignees &&
@@ -120,7 +125,8 @@ function KanbanBoardInner() {
     statuses: [],
     columns: [],
     dueFrom: "",
-    dueTo: ""
+    dueTo: "",
+    crOnly: false,
   });
 
   // Filtered cards, memoized for perf (updates when filters/cards/columns change)
