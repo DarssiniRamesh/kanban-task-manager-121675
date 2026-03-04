@@ -105,9 +105,7 @@ function csvEscape(value) {
  */
 function objectsToCsv(rows, fieldsInOrder) {
   const header = fieldsInOrder.join(',');
-  const lines = (rows || []).map((row) =>
-    fieldsInOrder.map((k) => csvEscape(row?.[k])).join(',')
-  );
+  const lines = (rows || []).map((row) => fieldsInOrder.map((k) => csvEscape(row?.[k])).join(','));
   return [header, ...lines].join('\r\n') + '\r\n';
 }
 
@@ -144,6 +142,114 @@ function csvToObjects(csvText) {
   }
 
   return { header, rows };
+}
+
+/**
+ * Accepted input formats for due_date in CSV import.
+ * Invariant: normalization output is always `yyyy-mm-dd`.
+ */
+const DUE_DATE_ACCEPTED_FORMATS = [
+  'yyyy-mm-dd (e.g. 2024-01-31)',
+  'dd-mm-yyyy (e.g. 31-01-2024)',
+  'dd/mm/yyyy (e.g. 31/01/2024)',
+  'mm/dd/yyyy (e.g. 01/31/2024)',
+];
+
+/**
+ * Convert numeric Y/M/D to an ISO date string (yyyy-mm-dd) and validate it represents a real calendar date.
+ *
+ * Contract:
+ * - Input: { yyyy: number, mm: number, dd: number, original: string }
+ * - Output: string `yyyy-mm-dd`
+ * - Errors: throws Error if the date is out of range or not a real date.
+ */
+function toIsoDateOrThrow({ yyyy, mm, dd, original }) {
+  const baseMsg = `Invalid "due_date" value: ${original}. Accepted formats: ${DUE_DATE_ACCEPTED_FORMATS.join(
+    ', '
+  )}, or blank.`;
+
+  if (!Number.isInteger(yyyy) || !Number.isInteger(mm) || !Number.isInteger(dd)) {
+    throw new Error(baseMsg);
+  }
+  if (yyyy < 1000 || yyyy > 9999 || mm < 1 || mm > 12 || dd < 1 || dd > 31) {
+    throw new Error(baseMsg);
+  }
+
+  // Validate it's a real date (e.g., reject 31-02-2024).
+  const dt = new Date(Date.UTC(yyyy, mm - 1, dd));
+  const valid =
+    dt.getUTCFullYear() === yyyy && dt.getUTCMonth() === mm - 1 && dt.getUTCDate() === dd;
+
+  if (!valid) {
+    throw new Error(
+      `Invalid "due_date" value: ${original}. Not a real calendar date. Accepted formats: ${DUE_DATE_ACCEPTED_FORMATS.join(
+        ', '
+      )}, or blank.`
+    );
+  }
+
+  const pad2 = (n) => String(n).padStart(2, '0');
+  return `${String(yyyy).padStart(4, '0')}-${pad2(mm)}-${pad2(dd)}`;
+}
+
+/**
+ * Try to parse and normalize a human-entered date string to `yyyy-mm-dd`.
+ *
+ * Contract:
+ * - Input: string (already trimmed); may be '' for blank
+ * - Output:
+ *   - { iso: string | null } where iso is `yyyy-mm-dd` and null means blank input
+ * - Errors:
+ *   - throws Error with a user-facing message if the value is non-blank but not parseable
+ * - Notes:
+ *   - This does not accept locale-specific month names; it targets common numeric CSV formats.
+ */
+function normalizeDueDate(value) {
+  const raw = value == null ? '' : String(value).trim();
+  if (!raw) return { iso: null };
+
+  // Already in canonical form.
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    return { iso: raw };
+  }
+
+  // dd-mm-yyyy
+  let m = raw.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
+  if (m) {
+    const dd = Number(m[1]);
+    const mm = Number(m[2]);
+    const yyyy = Number(m[3]);
+    return { iso: toIsoDateOrThrow({ yyyy, mm, dd, original: raw }) };
+  }
+
+  // dd/mm/yyyy or mm/dd/yyyy (ambiguous when both <= 12)
+  m = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (m) {
+    const a = Number(m[1]);
+    const b = Number(m[2]);
+    const yyyy = Number(m[3]);
+
+    // Disambiguation rule:
+    // - If a > 12 => a is day (dd/mm/yyyy)
+    // - Else if b > 12 => b is day (mm/dd/yyyy)
+    // - Else ambiguous: reject with actionable guidance
+    if (a > 12 && b <= 12) {
+      return { iso: toIsoDateOrThrow({ yyyy, mm: b, dd: a, original: raw }) };
+    }
+    if (b > 12 && a <= 12) {
+      return { iso: toIsoDateOrThrow({ yyyy, mm: a, dd: b, original: raw }) };
+    }
+
+    throw new Error(
+      `Invalid "due_date" value: ${raw}. Ambiguous format. Please use yyyy-mm-dd or an unambiguous format like dd-mm-yyyy. Accepted formats: ${DUE_DATE_ACCEPTED_FORMATS.join(
+        ', '
+      )}, or blank.`
+    );
+  }
+
+  throw new Error(
+    `Invalid "due_date" value: ${raw}. Accepted formats: ${DUE_DATE_ACCEPTED_FORMATS.join(', ')}, or blank.`
+  );
 }
 
 /**
@@ -185,16 +291,9 @@ function normalizeCardRow(raw) {
   const priority = pick('priority') || null;
   const status = pick('status') || null;
 
-  // due_date: allow blank; otherwise expect yyyy-mm-dd (Supabase date).
+  // due_date: allow blank; otherwise normalize common human-entered formats to yyyy-mm-dd (Supabase date).
   const due_date_raw = pick('due_date');
-  let due_date = null;
-  if (due_date_raw) {
-    // Very lightweight validation; backend will enforce date coercion.
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(due_date_raw)) {
-      throw new Error(`Invalid "due_date" value: ${due_date_raw}. Expected yyyy-mm-dd or blank.`);
-    }
-    due_date = due_date_raw;
-  }
+  const { iso: due_date } = normalizeDueDate(due_date_raw);
 
   const payload = {
     // id may be null: if omitted, upsert-by-id would not be safe.
@@ -273,7 +372,9 @@ export async function syncCardsFromCsvText(csvText) {
 
   const headerSet = new Set(header.map((h) => String(h || '').trim()));
   if (!headerSet.has('id')) {
-    throw new Error('CSV is missing required column "id". Export a CSV from this app to ensure round-trip compatibility.');
+    throw new Error(
+      'CSV is missing required column "id". Export a CSV from this app to ensure round-trip compatibility.'
+    );
   }
   if (!headerSet.has('column_id')) {
     throw new Error(
