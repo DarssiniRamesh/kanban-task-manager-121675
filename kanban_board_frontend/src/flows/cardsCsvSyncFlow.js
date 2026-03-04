@@ -19,8 +19,13 @@ import { getSupabaseClient } from '../kanbanSupabase';
  *    2) status-like hints (e.g., "To Do", "Doing", "Done"), else
  *    3) safe default: "Backlog" column (or the first column by position).
  *
+ * Update (2026-03):
+ * - Some CSV sources may have missing/blank `feature`, which is DB-required (NOT NULL).
+ * - Import now treats `feature` as "required but derivable": if blank, it is derived from other fields
+ *   (description/notes) or defaulted to "Untitled", while emitting warnings so sync can proceed.
+ *
  * Failure modes (top):
- * 1) Invalid CSV (missing required fields like `feature` or invalid UUID for `id`): surfaced as user-facing error.
+ * 1) Invalid CSV (missing required fields like `id` or invalid due_date): surfaced as user-facing error.
  * 2) Supabase API error (RLS, schema mismatch, invalid foreign key `column_id`): surfaced with context.
  * 3) File read errors: surfaced as user-facing error.
  */
@@ -63,6 +68,59 @@ function normalizeLabel(value) {
     .trim()
     .toLowerCase()
     .replace(/\s+/g, ' ');
+}
+
+/**
+ * Flow name: FeatureDerivationFlow (core helper)
+ *
+ * Derive a safe `feature` string for DB-required `kanban_cards.feature`.
+ *
+ * Contract:
+ * - Inputs:
+ *   - rawRow: object containing CSV string values (may be missing keys)
+ *   - rowNumForLogging: number|string used only for warning text
+ * - Output:
+ *   - { feature: string, warnings: string[] }
+ * - Errors:
+ *   - never throws; always returns a non-empty string
+ *
+ * Invariants:
+ * - Returned feature is always a non-empty string (trimmed).
+ * - If derivation/defaulting occurs, a warning is returned explaining what happened.
+ *
+ * Observability:
+ * - This helper does not log directly (pure-ish); caller aggregates warnings and logs at flow level.
+ */
+function deriveFeatureForRow({ rawRow, rowNumForLogging }) {
+  const warnings = [];
+  const pick = (k) => (rawRow?.[k] == null ? '' : String(rawRow[k]).trim());
+
+  const explicit = pick('feature');
+  if (explicit) {
+    return { feature: explicit, warnings };
+  }
+
+  // Best-effort derivation: use description as a proxy if present.
+  const description = pick('description');
+  if (description) {
+    const compact = description.replace(/\s+/g, ' ').trim();
+    const derived = compact.length > 80 ? `${compact.slice(0, 77)}...` : compact;
+    warnings.push(`Row ${rowNumForLogging}: missing/blank "feature"; derived from "description".`);
+    return { feature: derived || 'Untitled', warnings };
+  }
+
+  // Next fallback: notes (if present)
+  const notes = pick('notes');
+  if (notes) {
+    const compact = notes.replace(/\s+/g, ' ').trim();
+    const derived = compact.length > 80 ? `${compact.slice(0, 77)}...` : compact;
+    warnings.push(`Row ${rowNumForLogging}: missing/blank "feature"; derived from "notes".`);
+    return { feature: derived || 'Untitled', warnings };
+  }
+
+  // Safe default placeholder.
+  warnings.push(`Row ${rowNumForLogging}: missing/blank "feature"; defaulted to "Untitled".`);
+  return { feature: 'Untitled', warnings };
 }
 
 /**
@@ -307,8 +365,7 @@ function toIsoDateOrThrow({ yyyy, mm, dd, original }) {
 
   // Validate it's a real date (e.g., reject 31-02-2024).
   const dt = new Date(Date.UTC(yyyy, mm - 1, dd));
-  const valid =
-    dt.getUTCFullYear() === yyyy && dt.getUTCMonth() === mm - 1 && dt.getUTCDate() === dd;
+  const valid = dt.getUTCFullYear() === yyyy && dt.getUTCMonth() === mm - 1 && dt.getUTCDate() === dd;
 
   if (!valid) {
     throw new Error(
@@ -387,7 +444,7 @@ function normalizeDueDate(value) {
  * Contract:
  * - Input: raw row object (string values)
  * - Output: { payload, warnings[] }
- * - Errors: throws for invalid required fields.
+ * - Errors: throws for invalid required fields. `feature` is derived/defaulted safely.
  */
 function normalizeCardRow(raw) {
   const warnings = [];
@@ -396,11 +453,13 @@ function normalizeCardRow(raw) {
   const id = pick('id') || null;
   const column_id = pick('column_id') || null;
 
-  // Required by DB
-  const feature = pick('feature');
-  if (!feature) {
-    throw new Error('Row is missing required field "feature".');
-  }
+  // Required by DB (NOT NULL): derive/default safely with warnings.
+  // Note: caller also derives feature with rowNum; this is a defensive backstop for other call sites.
+  const { feature, warnings: featureWarns } = deriveFeatureForRow({
+    rawRow: raw,
+    rowNumForLogging: '?',
+  });
+  featureWarns.forEach((w) => warnings.push(w));
 
   // Required by DB (NOT NULL). If missing, we default to 1 and warn.
   // Import will then allow user to reorder later.
@@ -553,15 +612,30 @@ export async function syncCardsFromCsvText(csvText) {
         `Row ${rowNum}: missing/blank "column_id"; defaulted to column_id=${finalColumnId} (${resolution.method}).`
       );
     } else if (resolution.method !== 'column_id') {
-      warnings.push(`Row ${rowNum}: resolved "column_id" via ${resolution.method} (${resolution.detail || ''}).`);
+      warnings.push(
+        `Row ${rowNum}: resolved "column_id" via ${resolution.method} (${resolution.detail || ''}).`
+      );
     }
 
     try {
       // Ensure normalization sees a concrete column_id.
       const mergedRaw = { ...raw, column_id: finalColumnId };
-      const { payload, warnings: rowWarns } = normalizeCardRow(mergedRaw);
+
+      // Derive/default feature with correct row numbering (do not hard-fail).
+      const { feature, warnings: featureWarns } = deriveFeatureForRow({
+        rawRow: mergedRaw,
+        rowNumForLogging: rowNum,
+      });
+      featureWarns.forEach((w) => warnings.push(w));
+
+      // Feed normalized row with guaranteed non-empty feature.
+      const mergedWithFeature = { ...mergedRaw, feature };
+
+      const { payload, warnings: rowWarns } = normalizeCardRow(mergedWithFeature);
       payloads.push(payload);
-      rowWarns.forEach((w) => warnings.push(`Row ${rowNum}: ${w}`));
+
+      // normalizeCardRow may include generic warnings; add row context and clean placeholders.
+      rowWarns.forEach((w) => warnings.push(`Row ${rowNum}: ${String(w).replace('Row ?: ', '')}`));
     } catch (e) {
       throw new Error(`Row ${rowNum}: ${e.message || e}`);
     }
