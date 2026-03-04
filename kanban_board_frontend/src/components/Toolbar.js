@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import { useKanban } from '../KanbanContext';
 import * as XLSX from 'xlsx';
@@ -10,6 +10,7 @@ import {
   readFileAsText,
   triggerBrowserDownload,
 } from '../flows/cardsCsvSyncFlow';
+import { getLatestCsvSyncSnapshot } from '../flows/csvSyncUndoFlow';
 
 function downloadExcelTemplate() {
   // Columns per Supabase schema
@@ -32,11 +33,19 @@ function downloadExcelTemplate() {
  *  - isFullscreen?: boolean to indicate current fullscreen state
  */
 function Toolbar({ onToggleFullscreen, isFullscreen, crOnly, onToggleCrOnly, canEdit = true }) {
-  const { addColumn, bulkInsertCards, columns, cards, syncCardsFromCsv } = useKanban();
+  const { addColumn, bulkInsertCards, columns, cards, syncCardsFromCsvWithUndo, undoLastCsvSyncRestore } = useKanban();
   const inputRef = useRef();
   const csvInputRef = useRef();
   const { showToast } = useFeedback();
   const { isCompact, setIsCompact } = useExpandMode();
+
+  // Keep UI in sync with whether an undo snapshot exists (e.g., after refresh).
+  const [hasUndo, setHasUndo] = React.useState(() => !!getLatestCsvSyncSnapshot());
+  const [isUndoWorking, setIsUndoWorking] = React.useState(false);
+
+  useEffect(() => {
+    setHasUndo(!!getLatestCsvSyncSnapshot());
+  }, []);
 
   // Modal state for Add Column
   const [addColumnModal, setAddColumnModal] = React.useState(false);
@@ -201,27 +210,76 @@ function Toolbar({ onToggleFullscreen, isFullscreen, crOnly, onToggleCrOnly, can
     const file = csvSyncState.file;
     if (!file) return;
 
-    setCsvSyncState(s => ({ ...s, isWorking: true }));
+    setCsvSyncState((s) => ({ ...s, isWorking: true }));
 
     try {
       const csvText = await readFileAsText(file);
-      const { result, error } = await syncCardsFromCsv(csvText);
+
+      // Editor-only gating (Toolbar already hides entry point when canEdit=false).
+      if (!canEdit) {
+        showToast('CSV sync is Editor-only.', 'error', 4200);
+        return;
+      }
+
+      const { result, snapshot, error } = await syncCardsFromCsvWithUndo(csvText);
 
       if (error) {
         showToast(`Re-import/Sync failed: ${error}`, 'error', 5200);
+        setHasUndo(!!getLatestCsvSyncSnapshot());
       } else {
         const warnCount = result?.warnings?.length || 0;
+        const undoNote = snapshot ? ' Undo is now available.' : '';
         showToast(
-          `Synced ${result?.upserted || 0}/${result?.totalRows || 0} rows by id` + (warnCount ? ` (${warnCount} warnings)` : ''),
+          `Synced ${result?.upserted || 0}/${result?.totalRows || 0} rows by id` +
+            (warnCount ? ` (${warnCount} warnings)` : '') +
+            undoNote,
           warnCount ? 'info' : 'success',
-          5200
+          6400
         );
+        setHasUndo(!!snapshot);
       }
     } catch (e) {
       showToast(`Re-import/Sync failed: ${e.message || e}`, 'error', 5200);
+      setHasUndo(!!getLatestCsvSyncSnapshot());
     } finally {
       setCsvSyncState({ showModal: false, file: null, preview: null, isWorking: false });
       if (csvInputRef.current) csvInputRef.current.value = '';
+    }
+  };
+
+  const handleUndoCsvSync = async () => {
+    if (!canEdit) {
+      showToast('Undo is Editor-only.', 'error', 4200);
+      return;
+    }
+    if (isUndoWorking) return;
+
+    const snap = getLatestCsvSyncSnapshot();
+    if (!snap) {
+      setHasUndo(false);
+      showToast('Nothing to undo.', 'info', 3200);
+      return;
+    }
+
+    setIsUndoWorking(true);
+    try {
+      const { result, error } = await undoLastCsvSyncRestore();
+      if (error) {
+        showToast(error, 'error', 5200);
+        setHasUndo(!!getLatestCsvSyncSnapshot());
+      } else {
+        showToast(
+          `Undo complete: restored ${result?.restored || 0} and deleted ${result?.deleted || 0} new cards.`,
+          'success',
+          5200
+        );
+        setHasUndo(false);
+      }
+    } catch (e) {
+      showToast(`Undo failed: ${e.message || e}`, 'error', 5200);
+      setHasUndo(!!getLatestCsvSyncSnapshot());
+    } finally {
+      setIsUndoWorking(false);
     }
   };
 
@@ -269,6 +327,35 @@ function Toolbar({ onToggleFullscreen, isFullscreen, crOnly, onToggleCrOnly, can
               onChange={handleCsvFileSelected}
             />
           </label>
+        )}
+
+        {canEdit && (
+          <button
+            type="button"
+            className="btn"
+            style={{
+              marginLeft: 8,
+              background: hasUndo ? 'rgba(56, 178, 172, 0.22)' : undefined,
+              outline: hasUndo ? '2px solid rgba(56, 178, 172, 0.65)' : undefined,
+              color: hasUndo ? '#bffbf6' : undefined,
+              fontWeight: 900,
+              opacity: hasUndo ? 1 : 0.65,
+              cursor: hasUndo && !isUndoWorking ? 'pointer' : 'not-allowed',
+            }}
+            disabled={!hasUndo || isUndoWorking}
+            onClick={handleUndoCsvSync}
+            aria-disabled={!hasUndo || isUndoWorking}
+            aria-label="Undo last CSV sync"
+            title={
+              !hasUndo
+                ? 'No undo snapshot available (perform a CSV sync first).'
+                : isUndoWorking
+                  ? 'Undo in progress…'
+                  : 'Undo last CSV re-import/sync (restore previous DB state)'
+            }
+          >
+            {isUndoWorking ? 'Undoing…' : 'Undo CSV Sync'}
+          </button>
         )}
 
         <button

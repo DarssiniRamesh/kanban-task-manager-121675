@@ -1,6 +1,12 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
 import { getSupabaseClient } from './kanbanSupabase';
 import { syncCardsFromCsvText } from './flows/cardsCsvSyncFlow';
+import {
+  createPreSyncSnapshotForCsv,
+  finalizePostSyncSnapshot,
+  getLatestCsvSyncSnapshot,
+  undoLastCsvSync,
+} from './flows/csvSyncUndoFlow';
 
 // Supabase tables: kanban_columns, kanban_cards
 // NOTE: Column archiving is UI-only (client-side state). No Supabase schema/persistence is used.
@@ -343,6 +349,75 @@ export function KanbanProvider({ children }) {
     }
   }, [fetchAll]);
 
+  // PUBLIC_INTERFACE
+  const syncCardsFromCsvWithUndo = useCallback(async (csvText) => {
+    /**
+     * Flow name: CardsCsvSyncWithUndoFlow (KanbanContext boundary)
+     *
+     * Contract:
+     * - Input:
+     *   - csvText: string (must include id header)
+     * - Output:
+     *   - { result, snapshot, error }
+     *     - result: { totalRows, upserted, warnings } (from import flow)
+     *     - snapshot: { createdAt, affectedIds, createdIds, ... } (undo metadata) or null
+     *     - error: string|null
+     * - Errors:
+     *   - all exceptions are caught and mapped to { error } for UI
+     * - Side effects:
+     *   - reads Supabase cards (snapshot)
+     *   - upserts Supabase cards (sync)
+     *   - reads Supabase cards again (finalize createdIds)
+     *   - refreshes local state via fetchAll()
+     */
+    setError(null);
+    try {
+      const snapshot = await createPreSyncSnapshotForCsv({ csvText, label: 'CSV Re-import/Sync' });
+      const result = await syncCardsFromCsvText(csvText);
+      const finalized = await finalizePostSyncSnapshot(snapshot);
+
+      await fetchAll();
+      return { result, snapshot: finalized, error: null };
+    } catch (e) {
+      const msg = e?.message || String(e);
+      // eslint-disable-next-line no-console
+      console.error('[KanbanContext.syncCardsFromCsvWithUndo] Failed', { msg, e });
+      setError(msg);
+      return { result: null, snapshot: null, error: msg };
+    }
+  }, [fetchAll]);
+
+  // PUBLIC_INTERFACE
+  const undoLastCsvSyncRestore = useCallback(async () => {
+    /**
+     * Flow name: CardsCsvSyncUndoBoundary (KanbanContext boundary)
+     *
+     * Contract:
+     * - Input: none (uses latest snapshot from storage)
+     * - Output: { result, error }
+     *   - result: { restored: number, deleted: number, snapshotCreatedAt: string|null }
+     * - Side effects:
+     *   - updates/deletes cards in Supabase
+     *   - refreshes local state via fetchAll()
+     */
+    setError(null);
+    try {
+      const snap = getLatestCsvSyncSnapshot();
+      const { restored, deleted } = await undoLastCsvSync();
+      await fetchAll();
+      return {
+        result: { restored, deleted, snapshotCreatedAt: snap?.createdAt || null },
+        error: null,
+      };
+    } catch (e) {
+      const msg = e?.message || String(e);
+      // eslint-disable-next-line no-console
+      console.error('[KanbanContext.undoLastCsvSyncRestore] Failed', { msg, e });
+      setError(msg);
+      return { result: null, error: msg };
+    }
+  }, [fetchAll]);
+
   // Derive active vs archived columns purely from UI state (no backend field).
   const activeColumns = useMemo(() => {
     const archived = archivedColumnIds || new Set();
@@ -378,6 +453,8 @@ export function KanbanProvider({ children }) {
         reorderCardsInColumn,
         bulkInsertCards,
         syncCardsFromCsv,
+        syncCardsFromCsvWithUndo,
+        undoLastCsvSyncRestore,
       }}
     >
       {children}
