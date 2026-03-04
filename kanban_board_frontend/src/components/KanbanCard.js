@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import ReactDOM from 'react-dom';
 import { useKanban } from '../KanbanContext';
 import { useFeedback } from '../KanbanBoard';
@@ -28,6 +28,24 @@ function Pill({ value, type }) {
   return <span className={className}>{value}</span>;
 }
 
+/**
+ * Flow name: CustomerRequestedToggleFlow
+ *
+ * Contract:
+ * - Inputs:
+ *   - cardId: string|number (required)
+ *   - desired: boolean (required) the new value for customer_requested
+ * - Output: Promise<void>
+ * - Errors:
+ *   - Surfaces errors to user via toast, logs to console with flow name + cardId
+ * - Side effects:
+ *   - Persists the flag via KanbanContext.updateCard (Supabase update behind the scenes)
+ *
+ * Invariants:
+ * - `customer_requested` is always written as a boolean.
+ * - Clicks on the toggle must not open the card modal.
+ */
+
 // Modal for card detail/expanded view+edit using React Portal
 function Modal({ children, onClose }) {
   if (typeof document === "undefined") return null;
@@ -56,7 +74,7 @@ function Modal({ children, onClose }) {
  *  - card: Object representing the card fields
  *  - isCompact: boolean controlling inline compact rendering
  */
-function KanbanCard({ card, isCompact = false }) {
+function KanbanCard({ card, isCompact = false, canEdit = true }) {
   const { updateCard, deleteCard } = useKanban();
   const [edit, setEdit] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
@@ -68,7 +86,27 @@ function KanbanCard({ card, isCompact = false }) {
     priority: card.priority,
     status: card.status,
     due_date: card.due_date,
+    // Persisted boolean flag (Supabase column: kanban_cards.customer_requested)
+    customer_requested: !!card.customer_requested,
   });
+
+  const { showToast } = useFeedback();
+
+  const isCustomerRequested = useMemo(() => !!card.customer_requested, [card.customer_requested]);
+
+  const runCustomerRequestedToggleFlow = useCallback(async (desired) => {
+    try {
+      // eslint-disable-next-line no-console
+      console.log('[CustomerRequestedToggleFlow] start', { cardId: card.id, desired });
+      await updateCard(card.id, { customer_requested: !!desired });
+      // eslint-disable-next-line no-console
+      console.log('[CustomerRequestedToggleFlow] success', { cardId: card.id, desired });
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('[CustomerRequestedToggleFlow] failure', { cardId: card.id, desired, err });
+      showToast && showToast(`Failed to update CR flag: ${err?.message || err}`, 'error');
+    }
+  }, [card.id, showToast, updateCard]);
 
   // Determine card color class (status primary, then priority)
   function getCardColorClass() {
@@ -100,15 +138,18 @@ function KanbanCard({ card, isCompact = false }) {
       priority: card.priority,
       status: card.status,
       due_date: card.due_date,
+      customer_requested: !!card.customer_requested,
     });
     setModalOpen(true);
     setEdit(false);
   };
 
   const handleChange = (e) => {
+    const { name, type, checked, value } = e.target;
     setFields(f => ({
       ...f,
-      [e.target.name]: e.target.value
+      // Invariant: booleans stay booleans in state so updateCard writes correct type to Supabase.
+      [name]: type === 'checkbox' ? !!checked : value
     }));
   };
 
@@ -124,7 +165,6 @@ function KanbanCard({ card, isCompact = false }) {
   // PUBLIC_INTERFACE
   const [deleteError, setDeleteError] = useState(null);
   const [deletionConfirm, setDeletionConfirm] = useState(false);
-  const { showToast } = useFeedback();
 
   const handleDelete = async () => {
     setDeletionConfirm(true);
@@ -163,6 +203,56 @@ function KanbanCard({ card, isCompact = false }) {
     return '#CFCFD4';
   }
 
+  function renderCustomerRequestedTag({ interactive } = { interactive: false }) {
+    const title = interactive
+      ? (isCustomerRequested ? 'Click to unmark Customer Requested' : 'Click to mark Customer Requested')
+      : 'Customer Requested';
+
+    // Interactive mode: only for Editor.
+    if (interactive) {
+      if (!canEdit) {
+        // Reader: show display-only tag when enabled, otherwise nothing.
+        if (!isCustomerRequested) return null;
+        return (
+          <span className="kanban-cr-tag" aria-label="Customer Requested" title="Customer Requested">
+            CR
+          </span>
+        );
+      }
+
+      return (
+        <button
+          type="button"
+          className={`kanban-cr-tag kanban-cr-tag-toggle ${isCustomerRequested ? 'is-on' : 'is-off'}`}
+          aria-label={isCustomerRequested ? 'Customer Requested: On (click to turn off)' : 'Customer Requested: Off (click to turn on)'}
+          aria-pressed={isCustomerRequested}
+          title={title}
+          onClick={(e) => {
+            // Don't open modal; the card container has onClick=openModal.
+            e.preventDefault();
+            e.stopPropagation();
+            runCustomerRequestedToggleFlow(!isCustomerRequested);
+          }}
+          onMouseDown={(e) => {
+            // Prevent DnD drag initiation when toggling.
+            e.preventDefault();
+            e.stopPropagation();
+          }}
+        >
+          CR
+        </button>
+      );
+    }
+
+    // Display-only mode: only show if it's enabled.
+    if (!isCustomerRequested) return null;
+    return (
+      <span className="kanban-cr-tag" aria-label="Customer Requested" title={title}>
+        CR
+      </span>
+    );
+  }
+
   // Inline Card View (respects compact mode) - now as a renderer function to avoid ReferenceError
   function renderInlineCard() {
     return (
@@ -180,8 +270,9 @@ function KanbanCard({ card, isCompact = false }) {
               title={card.status || 'Status'}
               style={{ background: getStatusDotColor() }}
             />
-            <div className="kanban-card-title-prominent" style={{ marginBottom: 0 }}>
-              {card.feature}
+            <div className="kanban-card-title-prominent" style={{ marginBottom: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span>{card.feature}</span>
+              {renderCustomerRequestedTag({ interactive: true })}
             </div>
           </div>
           {!isCompact && card.description && (
@@ -215,17 +306,24 @@ function KanbanCard({ card, isCompact = false }) {
               <>
                 <div className="kanban-detail-prominent-header">
                   <div className="kanban-detail-modal-title-row">
-                    <span className="kanban-detail-title-prominent">{card.feature}</span>
-                    <button className="kanban-card-editbtn" onClick={() => setEdit(true)} title="Edit">✎</button>
-                    <button
-                      className="kanban-card-delbtn"
-                      onClick={handleDelete}
-                      aria-label="Delete card"
-                      title="Delete"
-                      style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', lineHeight: 0 }}
-                    >
-                      <DeleteOutline fontSize="small" />
-                    </button>
+                    <span className="kanban-detail-title-prominent" style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
+                      <span>{card.feature}</span>
+                      {renderCustomerRequestedTag({ interactive: false })}
+                    </span>
+                    {canEdit && (
+                      <button className="kanban-card-editbtn" onClick={() => setEdit(true)} title="Edit">✎</button>
+                    )}
+                    {canEdit && (
+                      <button
+                        className="kanban-card-delbtn"
+                        onClick={handleDelete}
+                        aria-label="Delete card"
+                        title="Delete"
+                        style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', lineHeight: 0 }}
+                      >
+                        <DeleteOutline fontSize="small" />
+                      </button>
+                    )}
                   </div>
                   {card.description && (
                     <div className="kanban-detail-desc-prominent">
@@ -253,7 +351,9 @@ function KanbanCard({ card, isCompact = false }) {
                   <div className="kanban-detail-label">Notes</div>
                   <div className="kanban-detail-content">{card.notes || <span className="missing-info">None</span>}</div>
                 </div>
-                <button className="btn" style={{marginTop:18, width:"100%"}} onClick={() => setEdit(true)}>Edit Card</button>
+                {canEdit && (
+                  <button className="btn" style={{marginTop:18, width:"100%"}} onClick={() => setEdit(true)}>Edit Card</button>
+                )}
               </>
             ) : (
               <form className="kanban-edit-card-form" onSubmit={handleSubmit}>
@@ -264,6 +364,7 @@ function KanbanCard({ card, isCompact = false }) {
                     onChange={handleChange}
                     required
                     placeholder="Feature/Title"
+                    disabled={!canEdit}
                   />
                   {/* Assignee with autocomplete suggestions */}
                   <AssigneeAutocomplete
@@ -273,17 +374,17 @@ function KanbanCard({ card, isCompact = false }) {
                     placeholder="Assignee"
                     className="styled-input"
                     style={{ minWidth: 0 }}
-                    inputProps={{ 'aria-label': 'Assignee' }}
+                    inputProps={{ 'aria-label': 'Assignee', disabled: !canEdit }}
                     idSuffix={`edit-${card.id}`}
                   />
-                  <select name="priority" value={fields.priority||""} onChange={handleChange}>
+                  <select name="priority" value={fields.priority||""} onChange={handleChange} disabled={!canEdit}>
                     <option value="">Priority</option>
                     <option value="Low">Low</option>
                     <option value="Medium">Medium</option>
                     <option value="High">High</option>
                     <option value="Critical">Critical</option>
                   </select>
-                  <select name="status" value={fields.status||""} onChange={handleChange}>
+                  <select name="status" value={fields.status||""} onChange={handleChange} disabled={!canEdit}>
                     <option value="">Status</option>
                     <option value="To Do">To Do</option>
                     <option value="In Progress">In Progress</option>
@@ -291,24 +392,54 @@ function KanbanCard({ card, isCompact = false }) {
                     <option value="Done">Done</option>
                     <option value="On Hold">On Hold</option>
                   </select>
-                  <input name="due_date" type="date" value={fields.due_date||""} onChange={handleChange}/>
-                </div>
-                <textarea name="description" value={fields.description||""} onChange={handleChange} placeholder="Description"/>
-                <textarea name="notes" value={fields.notes||""} onChange={handleChange} placeholder="Notes"/>
-                <div className="kanban-modal-form-buttons">
-                  <button className="btn" type="submit">Save</button>
-                  <button className="btn" type="button" onClick={()=>setEdit(false)}>Cancel</button>
-                  <button
-                    className="btn"
-                    type="button"
-                    onClick={handleDelete}
-                    style={{ marginLeft: "auto", display: 'inline-flex', alignItems: 'center' }}
-                    aria-label="Delete card"
-                    title="Delete"
+                  <input name="due_date" type="date" value={fields.due_date||""} onChange={handleChange} disabled={!canEdit}/>
+                  <label
+                    className="kanban-cr-toggle"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      padding: '6px 8px',
+                      borderRadius: 8,
+                      border: '1.5px solid var(--input-border)',
+                      background: 'var(--input-bg)',
+                      color: 'var(--color-text-main, #292010)',
+                      fontWeight: 800,
+                      userSelect: 'none',
+                      opacity: canEdit ? 1 : 0.6
+                    }}
+                    title={canEdit ? "Mark this card as customer requested" : "Reader mode: view-only"}
                   >
-                    <DeleteOutline fontSize="small" style={{ marginRight: 6 }} />
-                    Delete
-                  </button>
+                    <input
+                      type="checkbox"
+                      name="customer_requested"
+                      checked={!!fields.customer_requested}
+                      onChange={handleChange}
+                      aria-label="Customer requested"
+                      style={{ transform: 'translateY(0.5px)' }}
+                      disabled={!canEdit}
+                    />
+                    Customer Requested
+                  </label>
+                </div>
+                <textarea name="description" value={fields.description||""} onChange={handleChange} placeholder="Description" disabled={!canEdit}/>
+                <textarea name="notes" value={fields.notes||""} onChange={handleChange} placeholder="Notes" disabled={!canEdit}/>
+                <div className="kanban-modal-form-buttons">
+                  <button className="btn" type="submit" disabled={!canEdit}>Save</button>
+                  <button className="btn" type="button" onClick={()=>setEdit(false)}>Cancel</button>
+                  {canEdit && (
+                    <button
+                      className="btn"
+                      type="button"
+                      onClick={handleDelete}
+                      style={{ marginLeft: "auto", display: 'inline-flex', alignItems: 'center' }}
+                      aria-label="Delete card"
+                      title="Delete"
+                    >
+                      <DeleteOutline fontSize="small" style={{ marginRight: 6 }} />
+                      Delete
+                    </button>
+                  )}
                 </div>
               </form>
             )}

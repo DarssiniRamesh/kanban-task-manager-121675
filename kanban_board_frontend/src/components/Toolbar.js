@@ -1,10 +1,16 @@
-import React, { useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import { useKanban } from '../KanbanContext';
 import * as XLSX from 'xlsx';
 import { useFeedback, useExpandMode } from '../KanbanBoard';
 import FullscreenIcon from '@mui/icons-material/Fullscreen';
 import FullscreenExitIcon from '@mui/icons-material/FullscreenExit';
+import {
+  exportCardsToCsv,
+  readFileAsText,
+  triggerBrowserDownload,
+} from '../flows/cardsCsvSyncFlow';
+import { getLatestCsvSyncSnapshot } from '../flows/csvSyncUndoFlow';
 
 function downloadExcelTemplate() {
   // Columns per Supabase schema
@@ -26,11 +32,20 @@ function downloadExcelTemplate() {
  *  - onToggleFullscreen?: function to toggle fullscreen mode for Product page
  *  - isFullscreen?: boolean to indicate current fullscreen state
  */
-function Toolbar({ onToggleFullscreen, isFullscreen }) {
-  const { addColumn, bulkInsertCards, columns } = useKanban();
+function Toolbar({ onToggleFullscreen, isFullscreen, crOnly, onToggleCrOnly, canEdit = true }) {
+  const { addColumn, bulkInsertCards, columns, cards, syncCardsFromCsvWithUndo, undoLastCsvSyncRestore } = useKanban();
   const inputRef = useRef();
+  const csvInputRef = useRef();
   const { showToast } = useFeedback();
   const { isCompact, setIsCompact } = useExpandMode();
+
+  // Keep UI in sync with whether an undo snapshot exists (e.g., after refresh).
+  const [hasUndo, setHasUndo] = React.useState(() => !!getLatestCsvSyncSnapshot());
+  const [isUndoWorking, setIsUndoWorking] = React.useState(false);
+
+  useEffect(() => {
+    setHasUndo(!!getLatestCsvSyncSnapshot());
+  }, []);
 
   // Modal state for Add Column
   const [addColumnModal, setAddColumnModal] = React.useState(false);
@@ -43,6 +58,14 @@ function Toolbar({ onToggleFullscreen, isFullscreen }) {
     excelRows: [],
     header: [],
     entries: [],
+  });
+
+  // Modal state for CSV sync confirmation
+  const [csvSyncState, setCsvSyncState] = React.useState({
+    showModal: false,
+    file: null,
+    preview: null, // { totalRows, hasId, hasColumnId }
+    isWorking: false,
   });
 
   // Show ToastModal for Add Column
@@ -144,16 +167,197 @@ function Toolbar({ onToggleFullscreen, isFullscreen }) {
         showToast('Bulk upload encountered an error: ' + (e.message || e), "error");
       }
     };
+
+  const handleExportCardsCsv = () => {
+    try {
+      const { filename, csvText } = exportCardsToCsv(cards || []);
+      triggerBrowserDownload({ filename, content: csvText, mimeType: 'text/csv;charset=utf-8' });
+      showToast(`Exported ${cards?.length || 0} cards to CSV`, 'success');
+    } catch (e) {
+      showToast(`CSV export failed: ${e.message || e}`, 'error');
+    }
+  };
+
+  const handleCsvFileSelected = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const text = await readFileAsText(file);
+
+      // Lightweight preview: count rows + ensure header includes id.
+      // Note: column_id may be blank on some rows (Excel edits). The import flow will resolve/default it safely.
+      const firstLine = String(text).split(/\r?\n/)[0] || '';
+      const header = firstLine.split(',').map(h => String(h || '').trim().replace(/^\"|\"$/g, ''));
+      const hasId = header.includes('id');
+      const hasColumnId = header.includes('column_id');
+
+      const totalRows = Math.max(0, String(text).split(/\r?\n/).filter(Boolean).length - 1);
+
+      setCsvSyncState({
+        showModal: true,
+        file,
+        preview: { totalRows, hasId, hasColumnId },
+        isWorking: false,
+      });
+    } catch (e) {
+      showToast(`Failed to read CSV: ${e.message || e}`, 'error');
+      if (csvInputRef.current) csvInputRef.current.value = '';
+    }
+  };
+
+  const handleConfirmCsvSync = async () => {
+    const file = csvSyncState.file;
+    if (!file) return;
+
+    setCsvSyncState((s) => ({ ...s, isWorking: true }));
+
+    try {
+      const csvText = await readFileAsText(file);
+
+      // Editor-only gating (Toolbar already hides entry point when canEdit=false).
+      if (!canEdit) {
+        showToast('CSV sync is Editor-only.', 'error', 4200);
+        return;
+      }
+
+      const { result, snapshot, error } = await syncCardsFromCsvWithUndo(csvText);
+
+      if (error) {
+        showToast(`Re-import/Sync failed: ${error}`, 'error', 5200);
+        setHasUndo(!!getLatestCsvSyncSnapshot());
+      } else {
+        const warnCount = result?.warnings?.length || 0;
+        const undoNote = snapshot ? ' Undo is now available.' : '';
+        showToast(
+          `Synced ${result?.upserted || 0}/${result?.totalRows || 0} rows by id` +
+            (warnCount ? ` (${warnCount} warnings)` : '') +
+            undoNote,
+          warnCount ? 'info' : 'success',
+          6400
+        );
+        setHasUndo(!!snapshot);
+      }
+    } catch (e) {
+      showToast(`Re-import/Sync failed: ${e.message || e}`, 'error', 5200);
+      setHasUndo(!!getLatestCsvSyncSnapshot());
+    } finally {
+      setCsvSyncState({ showModal: false, file: null, preview: null, isWorking: false });
+      if (csvInputRef.current) csvInputRef.current.value = '';
+    }
+  };
+
+  const handleUndoCsvSync = async () => {
+    if (!canEdit) {
+      showToast('Undo is Editor-only.', 'error', 4200);
+      return;
+    }
+    if (isUndoWorking) return;
+
+    const snap = getLatestCsvSyncSnapshot();
+    if (!snap) {
+      setHasUndo(false);
+      showToast('Nothing to undo.', 'info', 3200);
+      return;
+    }
+
+    setIsUndoWorking(true);
+    try {
+      const { result, error } = await undoLastCsvSyncRestore();
+      if (error) {
+        showToast(error, 'error', 5200);
+        setHasUndo(!!getLatestCsvSyncSnapshot());
+      } else {
+        showToast(
+          `Undo complete: restored ${result?.restored || 0} and deleted ${result?.deleted || 0} new cards.`,
+          'success',
+          5200
+        );
+        setHasUndo(false);
+      }
+    } catch (e) {
+      showToast(`Undo failed: ${e.message || e}`, 'error', 5200);
+      setHasUndo(!!getLatestCsvSyncSnapshot());
+    } finally {
+      setIsUndoWorking(false);
+    }
+  };
+
 /* ---------- UI rendering section below ---------- */
   return (
     <>
       <div className="kanban-toolbar">
-        <button className="btn" onClick={handleAddColumn}>
-          + Add Column
-        </button>
+        {canEdit ? (
+          <button className="btn" onClick={handleAddColumn}>
+            + Add Column
+          </button>
+        ) : (
+          <div
+            style={{
+              padding: '8px 10px',
+              borderRadius: 10,
+              background: 'rgba(0,0,0,0.12)',
+              border: '1px solid rgba(0,0,0,0.10)',
+              fontWeight: 800,
+              color: '#1A1A1A',
+            }}
+            aria-label="View-only mode"
+            title="Reader role is view-only"
+          >
+            View-only (Reader)
+          </div>
+        )}
+
         <button className="btn" onClick={downloadExcelTemplate}>
           Download Excel Template
         </button>
+
+        <button className="btn" style={{ marginLeft: 8 }} onClick={handleExportCardsCsv}>
+          Export Cards CSV
+        </button>
+
+        {canEdit && (
+          <label className="btn" style={{ marginLeft: 8 }}>
+            Re-import/Sync CSV
+            <input
+              type="file"
+              accept=".csv,text/csv"
+              style={{ display: 'none' }}
+              ref={csvInputRef}
+              onChange={handleCsvFileSelected}
+            />
+          </label>
+        )}
+
+        {canEdit && (
+          <button
+            type="button"
+            className="btn"
+            style={{
+              marginLeft: 8,
+              background: hasUndo ? 'rgba(56, 178, 172, 0.22)' : undefined,
+              outline: hasUndo ? '2px solid rgba(56, 178, 172, 0.65)' : undefined,
+              color: hasUndo ? '#bffbf6' : undefined,
+              fontWeight: 900,
+              opacity: hasUndo ? 1 : 0.65,
+              cursor: hasUndo && !isUndoWorking ? 'pointer' : 'not-allowed',
+            }}
+            disabled={!hasUndo || isUndoWorking}
+            onClick={handleUndoCsvSync}
+            aria-disabled={!hasUndo || isUndoWorking}
+            aria-label="Undo last CSV sync"
+            title={
+              !hasUndo
+                ? 'No undo snapshot available (perform a CSV sync first).'
+                : isUndoWorking
+                  ? 'Undo in progress…'
+                  : 'Undo last CSV re-import/sync (restore previous DB state)'
+            }
+          >
+            {isUndoWorking ? 'Undoing…' : 'Undo CSV Sync'}
+          </button>
+        )}
+
         <button
           className="btn"
           style={{ marginLeft: 8, background: isCompact ? '#445' : undefined }}
@@ -164,16 +368,40 @@ function Toolbar({ onToggleFullscreen, isFullscreen }) {
         >
           {isCompact ? 'Expand' : 'Shorten'}
         </button>
-        <label className="btn" style={{ marginLeft: 8 }}>
-          Bulk Upload Excel
-          <input
-            type="file"
-            accept=".xlsx,.xls"
-            style={{ display: 'none' }}
-            ref={inputRef}
-            onChange={handleExcelUpload}
-          />
-        </label>
+
+        {typeof onToggleCrOnly === 'function' && (
+          <button
+            type="button"
+            className="btn"
+            onClick={onToggleCrOnly}
+            aria-pressed={!!crOnly}
+            aria-label={crOnly ? 'Disable CR-only filter' : 'Enable CR-only filter'}
+            title={crOnly ? 'CR-only filter is ON (click to turn off)' : 'CR-only filter is OFF (click to turn on)'}
+            style={{
+              marginLeft: 8,
+              background: crOnly ? 'rgba(56, 178, 172, 0.22)' : undefined,
+              outline: crOnly ? '2px solid rgba(56, 178, 172, 0.65)' : undefined,
+              color: crOnly ? '#bffbf6' : undefined,
+              fontWeight: 900,
+              letterSpacing: '0.06em',
+            }}
+          >
+            CR
+          </button>
+        )}
+
+        {canEdit && (
+          <label className="btn" style={{ marginLeft: 8 }}>
+            Bulk Upload Excel
+            <input
+              type="file"
+              accept=".xlsx,.xls"
+              style={{ display: 'none' }}
+              ref={inputRef}
+              onChange={handleExcelUpload}
+            />
+          </label>
+        )}
         {typeof onToggleFullscreen === 'function' && (
           <button
             className="btn"
@@ -268,6 +496,88 @@ function Toolbar({ onToggleFullscreen, isFullscreen }) {
                   <div style={{ color: "#a06700", fontSize: "0.96em", margin: "7px 0 0 1px" }}>
                     Cards parsed from file: <strong>{bulkUploadState.entries.length}</strong>
                   </div>
+                </div>
+              </div>,
+              document.body
+            )
+      )}
+
+      {/* CSV Re-import/Sync confirmation modal */}
+      {csvSyncState.showModal && (
+        typeof document === "undefined"
+          ? null
+          : ReactDOM.createPortal(
+              <div
+                className="kanban-modal-overlay"
+                onClick={() => setCsvSyncState(s => ({ ...s, showModal: false }))}
+              >
+                <div className="kanban-modal-dialog" onClick={e => e.stopPropagation()}>
+                  <button
+                    className="kanban-modal-close"
+                    onClick={() => setCsvSyncState(s => ({ ...s, showModal: false }))}
+                    title="Close"
+                  >
+                    ×
+                  </button>
+
+                  <div style={{ fontWeight: 800, fontSize: '1.19em', marginBottom: 10 }}>
+                    Re-import/Sync CSV (Upsert by id)
+                  </div>
+
+                  <div style={{ color: '#223', lineHeight: 1.5, marginBottom: 12 }}>
+                    This will <strong>update existing cards</strong> and <strong>insert new cards</strong> using the CSV
+                    <code style={{ marginLeft: 6 }}>id</code> as the key. If a row has a blank
+                    <code style={{ marginLeft: 6 }}>column_id</code>, the importer will resolve it from other fields (e.g. status)
+                    or default it to <strong>Backlog</strong>.
+                  </div>
+
+                  <div style={{ fontSize: '0.98em', marginBottom: 12 }}>
+                    <div><strong>File:</strong> {csvSyncState.file?.name}</div>
+                    <div><strong>Rows detected:</strong> {csvSyncState.preview?.totalRows ?? 0}</div>
+                    <div>
+                      <strong>Header checks:</strong>{' '}
+                      <span style={{ color: csvSyncState.preview?.hasId ? '#0a7' : '#c21', fontWeight: 800 }}>
+                        id {csvSyncState.preview?.hasId ? '✓' : '✗'}
+                      </span>
+                      {' · '}
+                      <span style={{ color: csvSyncState.preview?.hasColumnId ? '#0a7' : '#c21', fontWeight: 800 }}>
+                        column_id {csvSyncState.preview?.hasColumnId ? '✓' : '✗'} (recommended)
+                      </span>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button
+                      className="btn"
+                      type="button"
+                      disabled={csvSyncState.isWorking || !csvSyncState.preview?.hasId}
+                      onClick={handleConfirmCsvSync}
+                      title={!csvSyncState.preview?.hasId ? 'CSV must include an id column' : 'Sync cards now'}
+                    >
+                      {csvSyncState.isWorking ? 'Syncing…' : 'Sync Now'}
+                    </button>
+                    <button
+                      className="btn"
+                      type="button"
+                      disabled={csvSyncState.isWorking}
+                      onClick={() => setCsvSyncState({ showModal: false, file: null, preview: null, isWorking: false })}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+
+                  {!csvSyncState.preview?.hasId && (
+                    <div style={{ marginTop: 10, color: '#8a1d1d', fontWeight: 700 }}>
+                      Missing required column: <code>id</code>. Use “Export Cards CSV” first to get a compatible template.
+                    </div>
+                  )}
+
+                  {csvSyncState.preview?.hasId && !csvSyncState.preview?.hasColumnId && (
+                    <div style={{ marginTop: 10, color: '#6b4f00', fontWeight: 700 }}>
+                      Note: <code>column_id</code> column is not present. Rows will be defaulted to “Backlog” (or first column).
+                      For best fidelity, export from this app first.
+                    </div>
+                  )}
                 </div>
               </div>,
               document.body

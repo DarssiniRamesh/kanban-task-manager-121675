@@ -213,6 +213,66 @@
   background: rgba(244,51,51,0.08);
 }
 
+.kanban-column-archivebtn {
+  background: rgba(255, 179, 0, 0.10);
+  border: 1px solid rgba(255, 179, 0, 0.35);
+  color: var(--color-accent, #ffb300);
+  font-weight: 800;
+  font-size: 0.86rem;
+  padding: 4px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.14s, border-color 0.14s, transform 0.08s;
+}
+.kanban-column-archivebtn:hover {
+  background: rgba(255, 179, 0, 0.18);
+  border-color: rgba(255, 179, 0, 0.55);
+}
+.kanban-column-archivebtn:active {
+  transform: translateY(1px);
+}
+
+.archived-columns-panel {
+  padding: 10px 12px 22px 12px;
+  margin: 0 10px 40px 10px;
+}
+.archived-toggle-btn {
+  background: #132944;
+  color: #ffd38a;
+  font-weight: 900;
+  border-radius: 12px;
+}
+.archived-columns-list {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 520px;
+}
+.archived-column-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.10);
+}
+.archived-column-title {
+  font-weight: 900;
+  color: #e7eaf6;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.archived-restore-btn {
+  background: #38B2AC;
+  color: #062826;
+  font-weight: 900;
+  border-radius: 12px;
+}
+
 .kanban-card-list {
   margin-top: 5px;
   flex: 1;
@@ -428,6 +488,54 @@
   justify-content: space-between;
   align-items: center;
   padding-bottom: 3px;
+}
+
+/* Clear, bold CR tag displayed next to the card title when customer_requested=true */
+.kanban-cr-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 2px solid rgba(0,0,0,0.18);
+  background: #ffffff;
+  color: #000000;
+  font-weight: 900;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  line-height: 1.2;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+
+/* Interactive CR toggle on the card face (always shown, visually indicates on/off) */
+.kanban-cr-tag-toggle {
+  cursor: pointer;
+  user-select: none;
+  appearance: none;
+  -webkit-appearance: none;
+  outline: none;
+  transition: transform 0.06s ease, background 0.14s ease, border-color 0.14s ease, opacity 0.14s ease;
+}
+.kanban-cr-tag-toggle:active {
+  transform: translateY(1px);
+}
+.kanban-cr-tag-toggle.is-off {
+  opacity: 0.42;
+  background: rgba(255,255,255,0.62);
+  border-color: rgba(0,0,0,0.12);
+}
+.kanban-cr-tag-toggle.is-on {
+  opacity: 1;
+  background: #ffffff;
+  border-color: rgba(0,0,0,0.22);
+}
+
+/* Summary view: CR tag needs a touch of spacing and slightly smaller size */
+.summary-cr-tag {
+  margin-left: 8px;
+  transform: translateY(-0.5px);
+  font-size: 0.72rem;
+  padding: 1px 6px;
 }
 
 /* Icon/Action buttons themed for modal */

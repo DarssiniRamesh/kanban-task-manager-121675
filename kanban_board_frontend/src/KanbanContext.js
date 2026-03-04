@@ -1,12 +1,58 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
 import { getSupabaseClient } from './kanbanSupabase';
+import { syncCardsFromCsvText } from './flows/cardsCsvSyncFlow';
+import {
+  createPreSyncSnapshotForCsv,
+  finalizePostSyncSnapshot,
+  getLatestCsvSyncSnapshot,
+  undoLastCsvSync,
+} from './flows/csvSyncUndoFlow';
 
 // Supabase tables: kanban_columns, kanban_cards
+// NOTE: Column archiving is UI-only (client-side state). No Supabase schema/persistence is used.
 
 const KanbanContext = createContext();
 
 export function useKanban() {
   return useContext(KanbanContext);
+}
+
+const UI_ARCHIVED_COLUMNS_STORAGE_KEY = 'kanban.ui.archivedColumnIds.v1';
+
+/**
+ * Parse archived column IDs from localStorage.
+ * Contract:
+ * - Input: window.localStorage entry value (string|null)
+ * - Output: Set<string> of column IDs
+ * - Errors: never throws (returns empty Set on parse/validation failure)
+ */
+function safeLoadArchivedColumnIds() {
+  try {
+    const raw = localStorage.getItem(UI_ARCHIVED_COLUMNS_STORAGE_KEY);
+    if (!raw) return new Set();
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return new Set();
+    const ids = parsed
+      .map(v => (v == null ? null : String(v)))
+      .filter(Boolean);
+    return new Set(ids);
+  } catch {
+    return new Set();
+  }
+}
+
+/**
+ * Persist archived column IDs to localStorage.
+ * Contract:
+ * - Input: Set<string> of column IDs
+ * - Side effect: writes localStorage; never throws
+ */
+function safeSaveArchivedColumnIds(idSet) {
+  try {
+    localStorage.setItem(UI_ARCHIVED_COLUMNS_STORAGE_KEY, JSON.stringify(Array.from(idSet)));
+  } catch {
+    // ignore (e.g., private browsing / quota / disabled storage)
+  }
 }
 
 // PUBLIC_INTERFACE
@@ -18,27 +64,42 @@ export function KanbanProvider({ children }) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Real-time subscription effect
+  // UI-only archived state (Set of string IDs)
+  const [archivedColumnIds, setArchivedColumnIds] = useState(() => {
+    if (typeof window === 'undefined') return new Set();
+    return safeLoadArchivedColumnIds();
+  });
+
+  // Persist archived state changes
   useEffect(() => {
-    fetchAll();
+    if (typeof window === 'undefined') return;
+    safeSaveArchivedColumnIds(archivedColumnIds);
+  }, [archivedColumnIds]);
 
-    // Set up real-time subscriptions for both tables
-    const columnsSub = supabase
-      .channel('columns-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'kanban_columns' }, fetchAll)
-      .subscribe();
+  /**
+   * Flow name: ColumnArchiveUiStateFlow
+   * Entrypoints: archiveColumn(id), unarchiveColumn(id), toggleColumnArchived(id, desired)
+   *
+   * Contract:
+   * - Inputs: column id (string|number); desired (boolean)
+   * - Output: null (always) to keep UI code simple; errors are surfaced via console for debug.
+   * - Side effects: updates local React state + localStorage (best-effort).
+   */
+  const toggleColumnArchived = useCallback((id, desired) => {
+    const colId = id == null ? null : String(id);
+    if (!colId) {
+      // eslint-disable-next-line no-console
+      console.warn('[ColumnArchiveUiStateFlow] Ignored toggle: missing column id', { id, desired });
+      return;
+    }
 
-    const cardsSub = supabase
-      .channel('cards-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'kanban_cards' }, fetchAll)
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(columnsSub);
-      supabase.removeChannel(cardsSub);
-    };
-    // eslint-disable-next-line
-  }, []); // One subscription per mount
+    setArchivedColumnIds(prev => {
+      const next = new Set(prev);
+      if (desired) next.add(colId);
+      else next.delete(colId);
+      return next;
+    });
+  }, []);
 
   // Fetch all board data (columns + cards)
   const fetchAll = useCallback(async () => {
@@ -68,23 +129,71 @@ export function KanbanProvider({ children }) {
     }
   }, [supabase]);
 
+  // Real-time subscription effect
+  useEffect(() => {
+    fetchAll();
+
+    // Set up real-time subscriptions for both tables
+    const columnsSub = supabase
+      .channel('columns-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'kanban_columns' }, fetchAll)
+      .subscribe();
+
+    const cardsSub = supabase
+      .channel('cards-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'kanban_cards' }, fetchAll)
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(columnsSub);
+      supabase.removeChannel(cardsSub);
+    };
+    // eslint-disable-next-line
+  }, []); // One subscription per mount
+
   // Column CRUD
   const addColumn = async (title) => {
-    const newPos = columns.length ? Math.max(...columns.map(c=>c.position)) + 1 : 1;
-    let { error } = await supabase.from('kanban_columns').insert({ title, position: newPos });
+    const newPos = columns.length ? Math.max(...columns.map(c => c.position)) + 1 : 1;
+    // UI-only archiving: do not write is_archived (no schema dependency).
+    let { error } = await supabase
+      .from('kanban_columns')
+      .insert({ title, position: newPos });
     await fetchAll();
     return error;
   };
+
   const updateColumn = async (id, updates) => {
-    let { error } = await supabase.from('kanban_columns').update(updates).eq('id', id);
+    // UI-only archiving: never persist is_archived even if a caller accidentally sends it.
+    const { is_archived, ...safeUpdates } = (updates || {});
+    let { error } = await supabase.from('kanban_columns').update(safeUpdates).eq('id', id);
     await fetchAll();
     return error;
   };
+
+  // PUBLIC_INTERFACE
+  const archiveColumn = async (id) => {
+    /** UI-only: archives a column locally (no Supabase write). */
+    toggleColumnArchived(id, true);
+    return null;
+  };
+
+  // PUBLIC_INTERFACE
+  const unarchiveColumn = async (id) => {
+    /** UI-only: restores an archived column locally (no Supabase write). */
+    toggleColumnArchived(id, false);
+    return null;
+  };
+
   const deleteColumn = async (id) => {
     let { error } = await supabase.from('kanban_columns').delete().eq('id', id);
+
+    // Keep UI-only archived state consistent if the column is deleted.
+    toggleColumnArchived(id, false);
+
     await fetchAll();
     return error;
   };
+
   const reorderColumns = async (orderedList) => {
     // Takes [{id, position}]
     // Guarantee unique/contiguous positions: 1-based index in order of orderedList
@@ -113,11 +222,13 @@ export function KanbanProvider({ children }) {
     await fetchAll();
     return error;
   };
+
   const updateCard = async (id, updates) => {
     let { error } = await supabase.from('kanban_cards').update(updates).eq('id', id);
     await fetchAll();
     return error;
   };
+
   // PUBLIC_INTERFACE
   const deleteCard = async (id) => {
     // Immediate, accurate feedback: Remove from local state on API success, error only on Supabase API error.
@@ -154,6 +265,7 @@ export function KanbanProvider({ children }) {
       return errorMsg;
     }
   };
+
   const reorderCardsInColumn = async (column_id, orderedList) => {
     // orderedList: [{id, position}]
     const updates = orderedList.map(({ id, position }) =>
@@ -211,16 +323,128 @@ export function KanbanProvider({ children }) {
   };
 
   // PUBLIC_INTERFACE
+  const syncCardsFromCsv = useCallback(async (csvText) => {
+    /**
+     * Flow name: CardsCsvRoundTripSyncFlow (KanbanContext boundary)
+     *
+     * Contract:
+     * - Input: csvText string (must contain id + column_id headers)
+     * - Output: { result, error }
+     *   - result: { totalRows, upserted, warnings }
+     *   - error: string|null
+     * - Errors: caught and mapped into { error } for UI code; context `error` state is also set.
+     * - Side effects: upserts to Supabase via shared flow + refreshes local state via fetchAll().
+     */
+    setError(null);
+    try {
+      const result = await syncCardsFromCsvText(csvText);
+      await fetchAll();
+      return { result, error: null };
+    } catch (e) {
+      const msg = e?.message || String(e);
+      // eslint-disable-next-line no-console
+      console.error('[KanbanContext.syncCardsFromCsv] Failed', { msg, e });
+      setError(msg);
+      return { result: null, error: msg };
+    }
+  }, [fetchAll]);
+
+  // PUBLIC_INTERFACE
+  const syncCardsFromCsvWithUndo = useCallback(async (csvText) => {
+    /**
+     * Flow name: CardsCsvSyncWithUndoFlow (KanbanContext boundary)
+     *
+     * Contract:
+     * - Input:
+     *   - csvText: string (must include id header)
+     * - Output:
+     *   - { result, snapshot, error }
+     *     - result: { totalRows, upserted, warnings } (from import flow)
+     *     - snapshot: { createdAt, affectedIds, createdIds, ... } (undo metadata) or null
+     *     - error: string|null
+     * - Errors:
+     *   - all exceptions are caught and mapped to { error } for UI
+     * - Side effects:
+     *   - reads Supabase cards (snapshot)
+     *   - upserts Supabase cards (sync)
+     *   - reads Supabase cards again (finalize createdIds)
+     *   - refreshes local state via fetchAll()
+     */
+    setError(null);
+    try {
+      const snapshot = await createPreSyncSnapshotForCsv({ csvText, label: 'CSV Re-import/Sync' });
+      const result = await syncCardsFromCsvText(csvText);
+      const finalized = await finalizePostSyncSnapshot(snapshot);
+
+      await fetchAll();
+      return { result, snapshot: finalized, error: null };
+    } catch (e) {
+      const msg = e?.message || String(e);
+      // eslint-disable-next-line no-console
+      console.error('[KanbanContext.syncCardsFromCsvWithUndo] Failed', { msg, e });
+      setError(msg);
+      return { result: null, snapshot: null, error: msg };
+    }
+  }, [fetchAll]);
+
+  // PUBLIC_INTERFACE
+  const undoLastCsvSyncRestore = useCallback(async () => {
+    /**
+     * Flow name: CardsCsvSyncUndoBoundary (KanbanContext boundary)
+     *
+     * Contract:
+     * - Input: none (uses latest snapshot from storage)
+     * - Output: { result, error }
+     *   - result: { restored: number, deleted: number, snapshotCreatedAt: string|null }
+     * - Side effects:
+     *   - updates/deletes cards in Supabase
+     *   - refreshes local state via fetchAll()
+     */
+    setError(null);
+    try {
+      const snap = getLatestCsvSyncSnapshot();
+      const { restored, deleted } = await undoLastCsvSync();
+      await fetchAll();
+      return {
+        result: { restored, deleted, snapshotCreatedAt: snap?.createdAt || null },
+        error: null,
+      };
+    } catch (e) {
+      const msg = e?.message || String(e);
+      // eslint-disable-next-line no-console
+      console.error('[KanbanContext.undoLastCsvSyncRestore] Failed', { msg, e });
+      setError(msg);
+      return { result: null, error: msg };
+    }
+  }, [fetchAll]);
+
+  // Derive active vs archived columns purely from UI state (no backend field).
+  const activeColumns = useMemo(() => {
+    const archived = archivedColumnIds || new Set();
+    return (columns || []).filter(c => !archived.has(String(c.id)));
+  }, [columns, archivedColumnIds]);
+
+  const archivedColumns = useMemo(() => {
+    const archived = archivedColumnIds || new Set();
+    return (columns || []).filter(c => archived.has(String(c.id)));
+  }, [columns, archivedColumnIds]);
+
+  // PUBLIC_INTERFACE
   return (
     <KanbanContext.Provider
       value={{
+        // Keep the original `columns` for compatibility, but add helpers for UI.
         columns,
+        activeColumns,
+        archivedColumns,
         cards,
         isLoading,
         error,
         fetchAll,
         addColumn,
         updateColumn,
+        archiveColumn,
+        unarchiveColumn,
         deleteColumn,
         reorderColumns,
         addCard,
@@ -228,6 +452,9 @@ export function KanbanProvider({ children }) {
         deleteCard,
         reorderCardsInColumn,
         bulkInsertCards,
+        syncCardsFromCsv,
+        syncCardsFromCsvWithUndo,
+        undoLastCsvSyncRestore,
       }}
     >
       {children}

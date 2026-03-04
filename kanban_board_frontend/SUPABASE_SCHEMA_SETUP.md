@@ -12,6 +12,7 @@ This document explains how to initialize your Supabase database with tables for 
   - `id`: UUID primary key
   - `title`: Column name/title
   - `position`: Integer for display order
+  - `is_archived`: Boolean flag (when true, column is hidden from main board UI but kept for later restore)
   - `created_at`, `updated_at`: Timestamps
 
 - **kanban_cards**: represents feature cards/tasks belonging to columns

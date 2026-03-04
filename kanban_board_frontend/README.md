@@ -2,6 +2,41 @@
 
 This project provides a minimal React template with a clean, modern UI and minimal dependencies.
 
+## Database note (Supabase vs Neon)
+
+This repository is a **React frontend** that currently uses Supabase directly via `@supabase/supabase-js`.
+
+### Supabase configuration (required)
+
+This app expects the Supabase client to be configured via environment variables:
+
+- `REACT_APP_SUPABASE_URL`
+- `REACT_APP_SUPABASE_ANON_KEY`
+
+See `.env.example` for the full list of supported variables.
+
+### Neon note
+
+A **Neon Postgres** connection string (`postgresql://...`) is a secret credential and cannot be used from the browser.
+To use Neon at runtime, a backend/API service must be added to this project to securely connect to Neon and expose CRUD endpoints.
+
+Schema alignment/migration instructions to keep Neon tables identical to the current Supabase schema are in:
+- `NEON_SCHEMA_SETUP.md`
+
+## Dummy login (frontend-only)
+
+This app includes a **frontend-only dummy login gate** with two hardcoded roles:
+
+- **Reader (view-only)**: cannot create, edit, delete, drag, or move cards/columns.
+- **Editor (full access)**: can create/edit/delete and drag/move cards and columns.
+
+Credentials:
+
+- Reader username: `reader`
+- Editor username: `editor`
+
+> Note: This is not secure authentication. It only gates UI actions in the browser. Passwords are intentionally not displayed in the UI/docs.
+
 ## Features
 
 - **Lightweight**: No heavy UI frameworks - uses only vanilla CSS and React

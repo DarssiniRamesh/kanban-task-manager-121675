@@ -10,6 +10,7 @@ import { COLUMN_TYPE } from './components/dndTypes';
 import { useKanban } from './KanbanContext';
 import { useDrop, useDrag } from 'react-dnd';
 import FullscreenExitIcon from '@mui/icons-material/FullscreenExit';
+import { useAuth } from './auth/AuthContext';
 
 import './KanbanBoard.css';
 
@@ -37,6 +38,11 @@ export function useExpandMode() {
  */
 function filterCardsAND(cards, filters, columns) {
   return cards.filter(c => {
+    // CR-only (Customer Requested)
+    // If enabled, only show cards explicitly marked customer_requested === true.
+    // Treat missing/false as not customer requested.
+    if (filters.crOnly && c.customer_requested !== true) return false;
+
     // Assignee multi-filter (intersection)
     if (
       filters.assignees &&
@@ -72,10 +78,13 @@ function filterCardsAND(cards, filters, columns) {
 }
 
 function KanbanBoardInner() {
-  const { columns, isLoading, error, reorderColumns, cards } = useKanban();
+  const { columns, activeColumns, archivedColumns, isLoading, error, reorderColumns, cards, unarchiveColumn } = useKanban();
   const { showToast } = useFeedback();
   const { isCompact } = useExpandMode();
+  const { canEdit } = useAuth();
+
   const [draggedCol, setDraggedCol] = React.useState(null);
+  const [showArchived, setShowArchived] = React.useState(false);
 
   // Fullscreen state for Product page (persisted)
   const [fullScreen, setFullScreen] = React.useState(() => {
@@ -118,7 +127,8 @@ function KanbanBoardInner() {
     statuses: [],
     columns: [],
     dueFrom: "",
-    dueTo: ""
+    dueTo: "",
+    crOnly: false,
   });
 
   // Filtered cards, memoized for perf (updates when filters/cards/columns change)
@@ -134,12 +144,15 @@ function KanbanBoardInner() {
 
   // Handles local column reordering, triggers Supabase sync
   const moveColumn = (fromIdx, toIdx) => {
+    if (!canEdit) return;
+
+    const list = activeColumns || columns || [];
     // Defensive: do not swap to invalid
-    if (fromIdx === toIdx || fromIdx < 0 || toIdx < 0 || fromIdx >= columns.length || toIdx >= columns.length) return;
-    const reordered = [...columns];
+    if (fromIdx === toIdx || fromIdx < 0 || toIdx < 0 || fromIdx >= list.length || toIdx >= list.length) return;
+    const reordered = [...list];
     const [removed] = reordered.splice(fromIdx, 1);
     reordered.splice(toIdx, 0, removed);
-    // Renumber positions: 1-based sequencing
+    // Renumber positions: 1-based sequencing (only for active columns)
     const newOrder = reordered.map((col, i) => ({
       id: col.id,
       position: i + 1
@@ -151,7 +164,7 @@ function KanbanBoardInner() {
   // Only define DraggableKanbanColumn once!
   function DraggableKanbanColumn({ column, index, moveColumn, draggedCol, setDraggedCol, totalColumns, filteredCards, isCompact }) {
     // Drag source
-    const [{ isDragging }, drag, preview] = useDrag({
+    const [{ isDragging }, drag] = useDrag({
       type: COLUMN_TYPE,
       item: () => {
         setDraggedCol(index);
@@ -161,17 +174,19 @@ function KanbanBoardInner() {
         isDragging: monitor.isDragging(),
       }),
       end: () => setDraggedCol(null),
+      canDrag: () => !!canEdit,
     });
 
     // Drop target
     const [{ isOver, canDrop }, drop] = useDrop({
       accept: COLUMN_TYPE,
-      canDrop: (item) => item.id !== column.id,
+      canDrop: (item) => !!canEdit && item.id !== column.id,
       hover: (item, monitor) => {
         if (item.index === index) return;
         // No op to prevent multiple updates
       },
       drop: (item, monitor) => {
+        if (!canEdit) return;
         if (item.index !== index) {
           moveColumn(item.index, index);
         }
@@ -184,7 +199,11 @@ function KanbanBoardInner() {
 
     // Accessible markup/ARIA
     const draggableProps = {
-      ref: node => drag(drop(node)),
+      ref: (node) => {
+        if (!node) return;
+        if (!canEdit) return; // Reader: do not attach DnD handlers
+        drag(drop(node));
+      },
       'role': 'listitem',
       'aria-grabbed': isDragging,
       'aria-label': `Column: ${column.title}`,
@@ -195,7 +214,8 @@ function KanbanBoardInner() {
         boxShadow: isDragging ? '0 2px 18px #38B2AC66' : undefined,
         border: (isOver && canDrop) ? '3.5px solid #38B2AC' : undefined,
         outline: (isOver && canDrop) ? '2.5px dashed #42fae9' : undefined,
-        transition: 'box-shadow .17s, outline .13s, opacity .19s, border .18s'
+        transition: 'box-shadow .17s, outline .13s, opacity .19s, border .18s',
+        cursor: canEdit ? 'grab' : 'default',
       }
     };
 
@@ -214,12 +234,15 @@ function KanbanBoardInner() {
     <div className="kanban-app-container">
       {!fullScreen && (
         <Toolbar
+          canEdit={canEdit}
           onToggleFullscreen={() => setFullScreen(v => !v)}
           isFullscreen={fullScreen}
+          crOnly={!!filters.crOnly}
+          onToggleCrOnly={() => setFilters((prev) => ({ ...prev, crOnly: !prev.crOnly }))}
         />
       )}
       {!fullScreen && <StatusSummary />}
-      {!fullScreen && <FilterPanel onFiltersChange={setFilters} />}
+      {!fullScreen && <FilterPanel filters={filters} onFiltersChange={setFilters} />}
 
       {/* Exit Full Screen floating button - only visible in fullscreen mode */}
       {fullScreen && (
@@ -240,7 +263,7 @@ function KanbanBoardInner() {
         ) : error ? (
           <div className="kanban-error">{error}</div>
         ) : (
-          columns.map((col, idx) => (
+          (activeColumns || []).map((col, idx) => (
             <DraggableKanbanColumn
               key={col.id}
               column={col}
@@ -248,13 +271,56 @@ function KanbanBoardInner() {
               moveColumn={moveColumn}
               draggedCol={draggedCol}
               setDraggedCol={setDraggedCol}
-              totalColumns={columns.length}
+              totalColumns={(activeColumns || []).length}
               filteredCards={filteredCards.filter(c => c.column_id === col.id)}
               isCompact={isCompact}
             />
           ))
         )}
       </div>
+
+      {/* Archived columns section (collapsed by default) */}
+      {!isLoading && !error && (archivedColumns || []).length > 0 && (
+        <div className="archived-columns-panel" aria-label="Archived columns">
+          <button
+            type="button"
+            className="btn archived-toggle-btn"
+            onClick={() => setShowArchived(v => !v)}
+            aria-expanded={showArchived}
+          >
+            {showArchived ? 'Hide' : 'Show'} Archived Columns ({archivedColumns.length})
+          </button>
+
+          {showArchived && (
+            <div className="archived-columns-list" role="list" aria-label="Archived column list">
+              {archivedColumns.map(col => (
+                <div className="archived-column-row" role="listitem" key={col.id}>
+                  <div className="archived-column-title">{col.title}</div>
+                  {canEdit && (
+                    <button
+                      type="button"
+                      className="btn archived-restore-btn"
+                      onClick={async () => {
+                        try {
+                          const err = await unarchiveColumn(col.id);
+                          if (err) throw err;
+                          showToast && showToast(`Unarchived "${col.title}"`, 'success');
+                        } catch (e) {
+                          showToast && showToast(`Failed to unarchive "${col.title}": ${e.message || e}`, 'error');
+                        }
+                      }}
+                      aria-label={`Unarchive column ${col.title}`}
+                      title="Restore column"
+                    >
+                      Restore
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
