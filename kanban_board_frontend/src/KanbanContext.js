@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
 import { getSupabaseClient } from './kanbanSupabase';
+import { syncCardsFromCsvText } from './flows/cardsCsvSyncFlow';
 
 // Supabase tables: kanban_columns, kanban_cards
 // NOTE: Column archiving is UI-only (client-side state). No Supabase schema/persistence is used.
@@ -94,28 +95,6 @@ export function KanbanProvider({ children }) {
     });
   }, []);
 
-  // Real-time subscription effect
-  useEffect(() => {
-    fetchAll();
-
-    // Set up real-time subscriptions for both tables
-    const columnsSub = supabase
-      .channel('columns-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'kanban_columns' }, fetchAll)
-      .subscribe();
-
-    const cardsSub = supabase
-      .channel('cards-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'kanban_cards' }, fetchAll)
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(columnsSub);
-      supabase.removeChannel(cardsSub);
-    };
-    // eslint-disable-next-line
-  }, []); // One subscription per mount
-
   // Fetch all board data (columns + cards)
   const fetchAll = useCallback(async () => {
     setIsLoading(true);
@@ -143,6 +122,28 @@ export function KanbanProvider({ children }) {
       setIsLoading(false);
     }
   }, [supabase]);
+
+  // Real-time subscription effect
+  useEffect(() => {
+    fetchAll();
+
+    // Set up real-time subscriptions for both tables
+    const columnsSub = supabase
+      .channel('columns-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'kanban_columns' }, fetchAll)
+      .subscribe();
+
+    const cardsSub = supabase
+      .channel('cards-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'kanban_cards' }, fetchAll)
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(columnsSub);
+      supabase.removeChannel(cardsSub);
+    };
+    // eslint-disable-next-line
+  }, []); // One subscription per mount
 
   // Column CRUD
   const addColumn = async (title) => {
@@ -215,11 +216,13 @@ export function KanbanProvider({ children }) {
     await fetchAll();
     return error;
   };
+
   const updateCard = async (id, updates) => {
     let { error } = await supabase.from('kanban_cards').update(updates).eq('id', id);
     await fetchAll();
     return error;
   };
+
   // PUBLIC_INTERFACE
   const deleteCard = async (id) => {
     // Immediate, accurate feedback: Remove from local state on API success, error only on Supabase API error.
@@ -256,6 +259,7 @@ export function KanbanProvider({ children }) {
       return errorMsg;
     }
   };
+
   const reorderCardsInColumn = async (column_id, orderedList) => {
     // orderedList: [{id, position}]
     const updates = orderedList.map(({ id, position }) =>
@@ -312,6 +316,33 @@ export function KanbanProvider({ children }) {
     return error;
   };
 
+  // PUBLIC_INTERFACE
+  const syncCardsFromCsv = useCallback(async (csvText) => {
+    /**
+     * Flow name: CardsCsvRoundTripSyncFlow (KanbanContext boundary)
+     *
+     * Contract:
+     * - Input: csvText string (must contain id + column_id headers)
+     * - Output: { result, error }
+     *   - result: { totalRows, upserted, warnings }
+     *   - error: string|null
+     * - Errors: caught and mapped into { error } for UI code; context `error` state is also set.
+     * - Side effects: upserts to Supabase via shared flow + refreshes local state via fetchAll().
+     */
+    setError(null);
+    try {
+      const result = await syncCardsFromCsvText(csvText);
+      await fetchAll();
+      return { result, error: null };
+    } catch (e) {
+      const msg = e?.message || String(e);
+      // eslint-disable-next-line no-console
+      console.error('[KanbanContext.syncCardsFromCsv] Failed', { msg, e });
+      setError(msg);
+      return { result: null, error: msg };
+    }
+  }, [fetchAll]);
+
   // Derive active vs archived columns purely from UI state (no backend field).
   const activeColumns = useMemo(() => {
     const archived = archivedColumnIds || new Set();
@@ -346,6 +377,7 @@ export function KanbanProvider({ children }) {
         deleteCard,
         reorderCardsInColumn,
         bulkInsertCards,
+        syncCardsFromCsv,
       }}
     >
       {children}
