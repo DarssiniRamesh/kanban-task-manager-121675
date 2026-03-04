@@ -96,7 +96,7 @@ export default function Summary() {
    * - show active columns only by default
    * - hide cards belonging to archived columns implicitly (by not rendering those columns)
    */
-  const summaryColumns = activeColumns || (columns || []);
+  const summaryColumns = React.useMemo(() => (activeColumns || (columns || [])), [activeColumns, columns]);
 
   // Cards by column, sorted by position.
   // IMPORTANT: Only index cards for columns that are actually rendered in Summary.

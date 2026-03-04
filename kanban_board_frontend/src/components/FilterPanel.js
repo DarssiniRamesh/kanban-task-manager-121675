@@ -2,13 +2,7 @@ import React, { useMemo, useState } from "react";
 import { useKanban } from "../KanbanContext";
 import "./FilterPanel.css";
 import {
-  Select,
-  MenuItem,
-  InputLabel,
-  FormControl,
   Checkbox,
-  ListItemText,
-  OutlinedInput,
   Chip,
   Box,
   useTheme,
@@ -26,29 +20,6 @@ function getUniqueFieldValues(cards, field) {
   return Array.from(
     new Set(cards.map((c) => (c[field] || "").trim()).filter(Boolean))
   ).sort((a, b) => a.localeCompare(b));
-}
-
-// Render MUI chips with minimal style
-function renderChips(values, getLabel, onDelete) {
-  return (
-    <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.7 }}>
-      {values.map((val) => (
-        <Chip
-          key={val}
-          label={getLabel(val)}
-          size="small"
-          sx={{
-            bgcolor: "var(--color-bg-chip, #263949)",
-            color: "var(--color-chip-text, #ebfdff)",
-            fontWeight: 600,
-            m: "1px",
-            ".MuiChip-deleteIcon": { color: "#ef8585" },
-          }}
-          onDelete={onDelete ? () => onDelete(val) : undefined}
-        />
-      ))}
-    </Box>
-  );
 }
 
 const DEFAULT_FILTERS = {
@@ -75,7 +46,7 @@ const DEFAULT_FILTERS = {
  */
 export default function FilterPanel({ filters: controlledFilters, onFiltersChange }) {
   const { cards, activeColumns } = useKanban();
-  const theme = useTheme(); // kept for compatibility with existing styling approach
+  useTheme(); // initialize theme hook (keeps MUI theme context available if needed)
 
   const isControlled = controlledFilters != null;
 
@@ -347,7 +318,6 @@ export default function FilterPanel({ filters: controlledFilters, onFiltersChang
     <section
       className="kanban-filter-panel"
       aria-label="Kanban Filter Panel"
-      role="region"
       style={{
         padding: "7px 0 3px 0",
         background: "var(--color-bg-surface,#222937)",

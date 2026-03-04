@@ -13,7 +13,7 @@ export default function Dashboard() {
   const { cards, columns, isLoading, error } = useKanban();
 
   // Canonical, user-facing status labels (ensure exact casing for "To do").
-  const statusOrder = ['To do', 'In Progress', 'Review', 'Done', 'On Hold'];
+  const statusOrder = React.useMemo(() => (['To do', 'In Progress', 'Review', 'Done', 'On Hold']), []);
 
   // Normalize any input status value to one of the canonical labels above.
   const normalizeStatus = React.useCallback((value) => {
@@ -36,7 +36,7 @@ export default function Dashboard() {
       if (s && counts[s] != null) counts[s] += 1;
     });
     return counts;
-  }, [cards, normalizeStatus]);
+  }, [cards, normalizeStatus, statusOrder]);
 
   // Assignee -> per-status breakdown (To do, In Progress, Done)
   const assigneeBreakdown = React.useMemo(() => {

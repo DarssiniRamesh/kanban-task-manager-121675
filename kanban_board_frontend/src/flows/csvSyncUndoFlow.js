@@ -112,7 +112,7 @@ export function extractCardIdsFromCsvText(csvText) {
 
   const header = (lines[0] || '')
     .split(',')
-    .map((h) => String(h || '').trim().replace(/^\"|\"$/g, ''));
+    .map((h) => String(h || '').trim().replace(/^"|"$/g, ''));
 
   const idIdx = header.indexOf('id');
   if (idIdx < 0) {

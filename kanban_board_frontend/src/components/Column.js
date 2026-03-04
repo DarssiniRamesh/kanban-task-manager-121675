@@ -2,7 +2,6 @@ import React from 'react';
 import ReactDOM from 'react-dom';
 import { useKanban } from '../KanbanContext';
 import CardList from './CardList';
-import { CARD_TYPE } from './dndTypes';
 import { useAuth } from '../auth/AuthContext';
 
 /**

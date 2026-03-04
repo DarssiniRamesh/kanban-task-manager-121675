@@ -219,9 +219,6 @@ function KanbanBoardInner() {
       }
     };
 
-    // Keyboard reordering removed per requirement: Arrow keys disabled
-    const handleKeyDown = () => {};
-
     // Pass filteredCards to Column if present
     return (
       <div {...draggableProps}>
