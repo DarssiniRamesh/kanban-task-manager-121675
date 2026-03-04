@@ -23,6 +23,20 @@ To use Neon at runtime, a backend/API service must be added to this project to s
 Schema alignment/migration instructions to keep Neon tables identical to the current Supabase schema are in:
 - `NEON_SCHEMA_SETUP.md`
 
+## Dummy login (frontend-only)
+
+This app includes a **frontend-only dummy login gate** with two hardcoded roles:
+
+- **Reader (view-only)**: cannot create, edit, delete, drag, or move cards/columns.
+- **Editor (full access)**: can create/edit/delete and drag/move cards and columns.
+
+Credentials:
+
+- Reader: `reader` / `reader123`
+- Editor: `editor` / `editor123`
+
+> Note: This is not secure authentication. It only gates UI actions in the browser.
+
 ## Features
 
 - **Lightweight**: No heavy UI frameworks - uses only vanilla CSS and React

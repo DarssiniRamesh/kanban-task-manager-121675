@@ -26,7 +26,7 @@ function downloadExcelTemplate() {
  *  - onToggleFullscreen?: function to toggle fullscreen mode for Product page
  *  - isFullscreen?: boolean to indicate current fullscreen state
  */
-function Toolbar({ onToggleFullscreen, isFullscreen, crOnly, onToggleCrOnly }) {
+function Toolbar({ onToggleFullscreen, isFullscreen, crOnly, onToggleCrOnly, canEdit = true }) {
   const { addColumn, bulkInsertCards, columns } = useKanban();
   const inputRef = useRef();
   const { showToast } = useFeedback();
@@ -148,9 +148,27 @@ function Toolbar({ onToggleFullscreen, isFullscreen, crOnly, onToggleCrOnly }) {
   return (
     <>
       <div className="kanban-toolbar">
-        <button className="btn" onClick={handleAddColumn}>
-          + Add Column
-        </button>
+        {canEdit ? (
+          <button className="btn" onClick={handleAddColumn}>
+            + Add Column
+          </button>
+        ) : (
+          <div
+            style={{
+              padding: '8px 10px',
+              borderRadius: 10,
+              background: 'rgba(0,0,0,0.12)',
+              border: '1px solid rgba(0,0,0,0.10)',
+              fontWeight: 800,
+              color: '#1A1A1A',
+            }}
+            aria-label="View-only mode"
+            title="Reader role is view-only"
+          >
+            View-only (Reader)
+          </div>
+        )}
+
         <button className="btn" onClick={downloadExcelTemplate}>
           Download Excel Template
         </button>
@@ -186,16 +204,18 @@ function Toolbar({ onToggleFullscreen, isFullscreen, crOnly, onToggleCrOnly }) {
           </button>
         )}
 
-        <label className="btn" style={{ marginLeft: 8 }}>
-          Bulk Upload Excel
-          <input
-            type="file"
-            accept=".xlsx,.xls"
-            style={{ display: 'none' }}
-            ref={inputRef}
-            onChange={handleExcelUpload}
-          />
-        </label>
+        {canEdit && (
+          <label className="btn" style={{ marginLeft: 8 }}>
+            Bulk Upload Excel
+            <input
+              type="file"
+              accept=".xlsx,.xls"
+              style={{ display: 'none' }}
+              ref={inputRef}
+              onChange={handleExcelUpload}
+            />
+          </label>
+        )}
         {typeof onToggleFullscreen === 'function' && (
           <button
             className="btn"

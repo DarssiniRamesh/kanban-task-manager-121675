@@ -10,6 +10,7 @@ import { COLUMN_TYPE } from './components/dndTypes';
 import { useKanban } from './KanbanContext';
 import { useDrop, useDrag } from 'react-dnd';
 import FullscreenExitIcon from '@mui/icons-material/FullscreenExit';
+import { useAuth } from './auth/AuthContext';
 
 import './KanbanBoard.css';
 
@@ -80,8 +81,9 @@ function KanbanBoardInner() {
   const { columns, activeColumns, archivedColumns, isLoading, error, reorderColumns, cards, unarchiveColumn } = useKanban();
   const { showToast } = useFeedback();
   const { isCompact } = useExpandMode();
-  const [draggedCol, setDraggedCol] = React.useState(null);
+  const { canEdit } = useAuth();
 
+  const [draggedCol, setDraggedCol] = React.useState(null);
   const [showArchived, setShowArchived] = React.useState(false);
 
   // Fullscreen state for Product page (persisted)
@@ -142,6 +144,8 @@ function KanbanBoardInner() {
 
   // Handles local column reordering, triggers Supabase sync
   const moveColumn = (fromIdx, toIdx) => {
+    if (!canEdit) return;
+
     const list = activeColumns || columns || [];
     // Defensive: do not swap to invalid
     if (fromIdx === toIdx || fromIdx < 0 || toIdx < 0 || fromIdx >= list.length || toIdx >= list.length) return;
@@ -160,7 +164,7 @@ function KanbanBoardInner() {
   // Only define DraggableKanbanColumn once!
   function DraggableKanbanColumn({ column, index, moveColumn, draggedCol, setDraggedCol, totalColumns, filteredCards, isCompact }) {
     // Drag source
-    const [{ isDragging }, drag, preview] = useDrag({
+    const [{ isDragging }, drag] = useDrag({
       type: COLUMN_TYPE,
       item: () => {
         setDraggedCol(index);
@@ -170,17 +174,19 @@ function KanbanBoardInner() {
         isDragging: monitor.isDragging(),
       }),
       end: () => setDraggedCol(null),
+      canDrag: () => !!canEdit,
     });
 
     // Drop target
     const [{ isOver, canDrop }, drop] = useDrop({
       accept: COLUMN_TYPE,
-      canDrop: (item) => item.id !== column.id,
+      canDrop: (item) => !!canEdit && item.id !== column.id,
       hover: (item, monitor) => {
         if (item.index === index) return;
         // No op to prevent multiple updates
       },
       drop: (item, monitor) => {
+        if (!canEdit) return;
         if (item.index !== index) {
           moveColumn(item.index, index);
         }
@@ -193,7 +199,11 @@ function KanbanBoardInner() {
 
     // Accessible markup/ARIA
     const draggableProps = {
-      ref: node => drag(drop(node)),
+      ref: (node) => {
+        if (!node) return;
+        if (!canEdit) return; // Reader: do not attach DnD handlers
+        drag(drop(node));
+      },
       'role': 'listitem',
       'aria-grabbed': isDragging,
       'aria-label': `Column: ${column.title}`,
@@ -204,7 +214,8 @@ function KanbanBoardInner() {
         boxShadow: isDragging ? '0 2px 18px #38B2AC66' : undefined,
         border: (isOver && canDrop) ? '3.5px solid #38B2AC' : undefined,
         outline: (isOver && canDrop) ? '2.5px dashed #42fae9' : undefined,
-        transition: 'box-shadow .17s, outline .13s, opacity .19s, border .18s'
+        transition: 'box-shadow .17s, outline .13s, opacity .19s, border .18s',
+        cursor: canEdit ? 'grab' : 'default',
       }
     };
 
@@ -223,6 +234,7 @@ function KanbanBoardInner() {
     <div className="kanban-app-container">
       {!fullScreen && (
         <Toolbar
+          canEdit={canEdit}
           onToggleFullscreen={() => setFullScreen(v => !v)}
           isFullscreen={fullScreen}
           crOnly={!!filters.crOnly}
@@ -284,23 +296,25 @@ function KanbanBoardInner() {
               {archivedColumns.map(col => (
                 <div className="archived-column-row" role="listitem" key={col.id}>
                   <div className="archived-column-title">{col.title}</div>
-                  <button
-                    type="button"
-                    className="btn archived-restore-btn"
-                    onClick={async () => {
-                      try {
-                        const err = await unarchiveColumn(col.id);
-                        if (err) throw err;
-                        showToast && showToast(`Unarchived "${col.title}"`, 'success');
-                      } catch (e) {
-                        showToast && showToast(`Failed to unarchive "${col.title}": ${e.message || e}`, 'error');
-                      }
-                    }}
-                    aria-label={`Unarchive column ${col.title}`}
-                    title="Restore column"
-                  >
-                    Restore
-                  </button>
+                  {canEdit && (
+                    <button
+                      type="button"
+                      className="btn archived-restore-btn"
+                      onClick={async () => {
+                        try {
+                          const err = await unarchiveColumn(col.id);
+                          if (err) throw err;
+                          showToast && showToast(`Unarchived "${col.title}"`, 'success');
+                        } catch (e) {
+                          showToast && showToast(`Failed to unarchive "${col.title}": ${e.message || e}`, 'error');
+                        }
+                      }}
+                      aria-label={`Unarchive column ${col.title}`}
+                      title="Restore column"
+                    >
+                      Restore
+                    </button>
+                  )}
                 </div>
               ))}
             </div>

@@ -74,7 +74,7 @@ function Modal({ children, onClose }) {
  *  - card: Object representing the card fields
  *  - isCompact: boolean controlling inline compact rendering
  */
-function KanbanCard({ card, isCompact = false }) {
+function KanbanCard({ card, isCompact = false, canEdit = true }) {
   const { updateCard, deleteCard } = useKanban();
   const [edit, setEdit] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
@@ -208,8 +208,18 @@ function KanbanCard({ card, isCompact = false }) {
       ? (isCustomerRequested ? 'Click to unmark Customer Requested' : 'Click to mark Customer Requested')
       : 'Customer Requested';
 
-    // Interactive mode: always show the control so users can toggle directly on the card face.
+    // Interactive mode: only for Editor.
     if (interactive) {
+      if (!canEdit) {
+        // Reader: show display-only tag when enabled, otherwise nothing.
+        if (!isCustomerRequested) return null;
+        return (
+          <span className="kanban-cr-tag" aria-label="Customer Requested" title="Customer Requested">
+            CR
+          </span>
+        );
+      }
+
       return (
         <button
           type="button"
@@ -300,16 +310,20 @@ function KanbanCard({ card, isCompact = false }) {
                       <span>{card.feature}</span>
                       {renderCustomerRequestedTag({ interactive: false })}
                     </span>
-                    <button className="kanban-card-editbtn" onClick={() => setEdit(true)} title="Edit">✎</button>
-                    <button
-                      className="kanban-card-delbtn"
-                      onClick={handleDelete}
-                      aria-label="Delete card"
-                      title="Delete"
-                      style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', lineHeight: 0 }}
-                    >
-                      <DeleteOutline fontSize="small" />
-                    </button>
+                    {canEdit && (
+                      <button className="kanban-card-editbtn" onClick={() => setEdit(true)} title="Edit">✎</button>
+                    )}
+                    {canEdit && (
+                      <button
+                        className="kanban-card-delbtn"
+                        onClick={handleDelete}
+                        aria-label="Delete card"
+                        title="Delete"
+                        style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', lineHeight: 0 }}
+                      >
+                        <DeleteOutline fontSize="small" />
+                      </button>
+                    )}
                   </div>
                   {card.description && (
                     <div className="kanban-detail-desc-prominent">
@@ -337,7 +351,9 @@ function KanbanCard({ card, isCompact = false }) {
                   <div className="kanban-detail-label">Notes</div>
                   <div className="kanban-detail-content">{card.notes || <span className="missing-info">None</span>}</div>
                 </div>
-                <button className="btn" style={{marginTop:18, width:"100%"}} onClick={() => setEdit(true)}>Edit Card</button>
+                {canEdit && (
+                  <button className="btn" style={{marginTop:18, width:"100%"}} onClick={() => setEdit(true)}>Edit Card</button>
+                )}
               </>
             ) : (
               <form className="kanban-edit-card-form" onSubmit={handleSubmit}>
@@ -348,6 +364,7 @@ function KanbanCard({ card, isCompact = false }) {
                     onChange={handleChange}
                     required
                     placeholder="Feature/Title"
+                    disabled={!canEdit}
                   />
                   {/* Assignee with autocomplete suggestions */}
                   <AssigneeAutocomplete
@@ -357,17 +374,17 @@ function KanbanCard({ card, isCompact = false }) {
                     placeholder="Assignee"
                     className="styled-input"
                     style={{ minWidth: 0 }}
-                    inputProps={{ 'aria-label': 'Assignee' }}
+                    inputProps={{ 'aria-label': 'Assignee', disabled: !canEdit }}
                     idSuffix={`edit-${card.id}`}
                   />
-                  <select name="priority" value={fields.priority||""} onChange={handleChange}>
+                  <select name="priority" value={fields.priority||""} onChange={handleChange} disabled={!canEdit}>
                     <option value="">Priority</option>
                     <option value="Low">Low</option>
                     <option value="Medium">Medium</option>
                     <option value="High">High</option>
                     <option value="Critical">Critical</option>
                   </select>
-                  <select name="status" value={fields.status||""} onChange={handleChange}>
+                  <select name="status" value={fields.status||""} onChange={handleChange} disabled={!canEdit}>
                     <option value="">Status</option>
                     <option value="To Do">To Do</option>
                     <option value="In Progress">In Progress</option>
@@ -375,7 +392,7 @@ function KanbanCard({ card, isCompact = false }) {
                     <option value="Done">Done</option>
                     <option value="On Hold">On Hold</option>
                   </select>
-                  <input name="due_date" type="date" value={fields.due_date||""} onChange={handleChange}/>
+                  <input name="due_date" type="date" value={fields.due_date||""} onChange={handleChange} disabled={!canEdit}/>
                   <label
                     className="kanban-cr-toggle"
                     style={{
@@ -388,9 +405,10 @@ function KanbanCard({ card, isCompact = false }) {
                       background: 'var(--input-bg)',
                       color: 'var(--color-text-main, #292010)',
                       fontWeight: 800,
-                      userSelect: 'none'
+                      userSelect: 'none',
+                      opacity: canEdit ? 1 : 0.6
                     }}
-                    title="Mark this card as customer requested"
+                    title={canEdit ? "Mark this card as customer requested" : "Reader mode: view-only"}
                   >
                     <input
                       type="checkbox"
@@ -399,26 +417,29 @@ function KanbanCard({ card, isCompact = false }) {
                       onChange={handleChange}
                       aria-label="Customer requested"
                       style={{ transform: 'translateY(0.5px)' }}
+                      disabled={!canEdit}
                     />
                     Customer Requested
                   </label>
                 </div>
-                <textarea name="description" value={fields.description||""} onChange={handleChange} placeholder="Description"/>
-                <textarea name="notes" value={fields.notes||""} onChange={handleChange} placeholder="Notes"/>
+                <textarea name="description" value={fields.description||""} onChange={handleChange} placeholder="Description" disabled={!canEdit}/>
+                <textarea name="notes" value={fields.notes||""} onChange={handleChange} placeholder="Notes" disabled={!canEdit}/>
                 <div className="kanban-modal-form-buttons">
-                  <button className="btn" type="submit">Save</button>
+                  <button className="btn" type="submit" disabled={!canEdit}>Save</button>
                   <button className="btn" type="button" onClick={()=>setEdit(false)}>Cancel</button>
-                  <button
-                    className="btn"
-                    type="button"
-                    onClick={handleDelete}
-                    style={{ marginLeft: "auto", display: 'inline-flex', alignItems: 'center' }}
-                    aria-label="Delete card"
-                    title="Delete"
-                  >
-                    <DeleteOutline fontSize="small" style={{ marginRight: 6 }} />
-                    Delete
-                  </button>
+                  {canEdit && (
+                    <button
+                      className="btn"
+                      type="button"
+                      onClick={handleDelete}
+                      style={{ marginLeft: "auto", display: 'inline-flex', alignItems: 'center' }}
+                      aria-label="Delete card"
+                      title="Delete"
+                    >
+                      <DeleteOutline fontSize="small" style={{ marginRight: 6 }} />
+                      Delete
+                    </button>
+                  )}
                 </div>
               </form>
             )}

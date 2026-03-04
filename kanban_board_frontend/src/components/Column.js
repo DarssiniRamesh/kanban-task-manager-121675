@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom';
 import { useKanban } from '../KanbanContext';
 import CardList from './CardList';
 import { CARD_TYPE } from './dndTypes';
+import { useAuth } from '../auth/AuthContext';
 
 /**
  * Column represents a Kanban column (no drag logic here; handled by board parent for DnD).
@@ -11,6 +12,8 @@ import { CARD_TYPE } from './dndTypes';
  */
 function Column({ column, index, isDragging, isOver, filteredCards, isCompact }) {
   const { updateColumn, deleteColumn, archiveColumn, cards } = useKanban();
+  const { canEdit } = useAuth();
+
   // Use filteredCards if provided, otherwise filter all cards for this column
   const colCards = (filteredCards !== undefined)
     ? filteredCards
@@ -50,12 +53,18 @@ function Column({ column, index, isDragging, isOver, filteredCards, isCompact })
   // Start inline editing (via double-click or edit icon)
   const triggerTitleEdit = (e) => {
     e.stopPropagation();
+    if (!canEdit) return;
     setEditing(true);
     setTitleInput(column.title);
   };
 
   // Handle saving (blur, Enter, or Save)
   const saveEditTitle = async () => {
+    if (!canEdit) {
+      setEditing(false);
+      return;
+    }
+
     const error = validateNewTitle(titleInput);
     if (error) {
       showToast && showToast(error, error.includes("empty") ? "error" : "info");
@@ -88,6 +97,7 @@ function Column({ column, index, isDragging, isOver, filteredCards, isCompact })
   const handleDelete = () => setModal({ type: "delete" });
 
   const doDelete = async () => {
+    if (!canEdit) return;
     await deleteColumn(column.id);
     showToast && showToast("Column deleted.", "success");
     setModal({ type: null });
@@ -103,7 +113,7 @@ function Column({ column, index, isDragging, isOver, filteredCards, isCompact })
           outline: isOver ? '3.5px solid #38B2AC' : undefined,
           transition: 'outline .18s',
           boxShadow: isDragging ? "0 4px 32px #38B2AC55" : undefined,
-          cursor: 'grab'
+          cursor: canEdit ? 'grab' : 'default'
         }}
         data-column-id={column.id}
         tabIndex={-1}
@@ -117,7 +127,7 @@ function Column({ column, index, isDragging, isOver, filteredCards, isCompact })
                 display: 'flex',
                 alignItems: 'center',
                 gap: 7,
-                cursor: "pointer",
+                cursor: canEdit ? "pointer" : "default",
                 color: "var(--color-accent, #ffb300)",
                 fontWeight: 800,
                 fontSize: "1.14rem",
@@ -128,31 +138,33 @@ function Column({ column, index, isDragging, isOver, filteredCards, isCompact })
               onKeyDown={e => {
                 if (e.key === "Enter") triggerTitleEdit(e);
               }}
-              title="Double-click to edit column name"
+              title={canEdit ? "Double-click to edit column name" : "Reader mode: view-only"}
             >
               {column.title}
-              <button
-                type="button"
-                aria-label="Edit column name"
-                onClick={triggerTitleEdit}
-                style={{
-                  background: "none",
-                  border: "none",
-                  color: "var(--color-accent, #ffb300)",
-                  fontSize: "1.11em",
-                  marginLeft: 4,
-                  cursor: "pointer",
-                  opacity: 0.85,
-                  padding: "1px 6px",
-                  borderRadius: "4px",
-                  transition: "background .12s, color .15s"
-                }}
-                className="kanban-column-editbtn"
-                title="Edit column"
-                tabIndex={0}
-              >
-                ✎
-              </button>
+              {canEdit && (
+                <button
+                  type="button"
+                  aria-label="Edit column name"
+                  onClick={triggerTitleEdit}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "var(--color-accent, #ffb300)",
+                    fontSize: "1.11em",
+                    marginLeft: 4,
+                    cursor: "pointer",
+                    opacity: 0.85,
+                    padding: "1px 6px",
+                    borderRadius: "4px",
+                    transition: "background .12s, color .15s"
+                  }}
+                  className="kanban-column-editbtn"
+                  title="Edit column"
+                  tabIndex={0}
+                >
+                  ✎
+                </button>
+              )}
             </span>
           ) : (
             <span style={{ display: 'flex', alignItems: 'center', width: '100%' }}>
@@ -160,10 +172,10 @@ function Column({ column, index, isDragging, isOver, filteredCards, isCompact })
                 ref={inputRef}
                 type="text"
                 value={titleInput}
-                disabled={saving}
+                disabled={saving || !canEdit}
                 onChange={e => setTitleInput(e.target.value)}
                 onKeyDown={handleTitleInputKey}
-                onBlur={() => !saving && saveEditTitle()}
+                onBlur={() => !saving && canEdit && saveEditTitle()}
                 style={{
                   padding: 6,
                   fontSize: '1.09em',
@@ -183,7 +195,7 @@ function Column({ column, index, isDragging, isOver, filteredCards, isCompact })
                 className="btn"
                 style={{ marginLeft: 2, minWidth: 48, fontSize: "0.94em" }}
                 onClick={saveEditTitle}
-                disabled={saving}
+                disabled={saving || !canEdit}
               >
                 Save
               </button>
@@ -204,37 +216,42 @@ function Column({ column, index, isDragging, isOver, filteredCards, isCompact })
               </button>
             </span>
           )}
+
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <button
-              type="button"
-              className="kanban-column-archivebtn"
-              onClick={async (e) => {
-                e.stopPropagation();
-                try {
-                  const err = await archiveColumn(column.id);
-                  if (err) throw err;
-                  showToast && showToast(`Archived "${column.title}"`, 'success');
-                } catch (ex) {
-                  showToast && showToast(`Failed to archive "${column.title}": ${ex.message || ex}`, 'error');
-                }
-              }}
-              title="Archive column (hide from board)"
-              aria-label={`Archive column ${column.title}`}
-            >
-              Archive
-            </button>
-            <button className="kanban-column-delbtn" onClick={handleDelete} title="Delete column">
-              ×
-            </button>
+            {canEdit && (
+              <>
+                <button
+                  type="button"
+                  className="kanban-column-archivebtn"
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    try {
+                      const err = await archiveColumn(column.id);
+                      if (err) throw err;
+                      showToast && showToast(`Archived "${column.title}"`, 'success');
+                    } catch (ex) {
+                      showToast && showToast(`Failed to archive "${column.title}": ${ex.message || ex}`, 'error');
+                    }
+                  }}
+                  title="Archive column (hide from board)"
+                  aria-label={`Archive column ${column.title}`}
+                >
+                  Archive
+                </button>
+                <button className="kanban-column-delbtn" onClick={handleDelete} title="Delete column">
+                  ×
+                </button>
+              </>
+            )}
           </div>
         </div>
+
         <CardList column={column} cards={colCards} isCompact={isCompact} />
         <span className="sr-only">{isDragging ? 'Dragging column' : ''}</span>
       </div>
+
       {/* Delete Confirm Modal */}
-
-
-      {modal.type === "delete" && (
+      {modal.type === "delete" && canEdit && (
         typeof document === "undefined"
           ? null
           : ReactDOM.createPortal(

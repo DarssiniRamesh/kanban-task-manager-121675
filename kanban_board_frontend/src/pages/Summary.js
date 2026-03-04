@@ -7,6 +7,7 @@ import UnfoldLessIcon from '@mui/icons-material/UnfoldLess';
 import UnfoldMoreIcon from '@mui/icons-material/UnfoldMore';
 import FullscreenIcon from '@mui/icons-material/Fullscreen';
 import FullscreenExitIcon from '@mui/icons-material/FullscreenExit';
+import { useAuth } from '../auth/AuthContext';
 
 /**
  * PUBLIC_INTERFACE
@@ -30,6 +31,7 @@ export default function Summary() {
     reorderColumns,
     unarchiveColumn,
   } = useKanban();
+  const { canEdit } = useAuth();
 
   // Fullscreen toggle state (persisted)
   const [fullScreen, setFullScreen] = React.useState(() => {
@@ -194,13 +196,15 @@ export default function Summary() {
       collect: (monitor) => ({
         isDragging: monitor.isDragging(),
       }),
+      canDrag: () => !!canEdit,
     });
 
     // Drop target
     const [{ isOver, canDrop }, drop] = useDrop({
       accept: COLUMN_TYPE,
-      canDrop: (item) => item.id !== column.id,
+      canDrop: (item) => !!canEdit && item.id !== column.id,
       drop: (item) => {
+        if (!canEdit) return;
         if (item.index !== index) {
           moveColumn(item.index, index);
           item.index = index;
@@ -217,7 +221,11 @@ export default function Summary() {
 
     return (
       <section
-        ref={(node) => drag(drop(node))}
+        ref={(node) => {
+          if (!node) return;
+          if (!canEdit) return;
+          drag(drop(node));
+        }}
         className={`summary-col${isCollapsed ? ' collapsed' : ''}`}
         role="listitem"
         aria-label={`Column ${column.title}`}
@@ -384,23 +392,25 @@ export default function Summary() {
                   }}
                 >
                   <div style={{ fontWeight: 700, opacity: 0.92 }}>{col.title}</div>
-                  <button
-                    type="button"
-                    className="summary-col-actionbtn"
-                    onClick={async () => {
-                      // UI-only unarchive (no toast here to keep summary clean)
-                      try {
-                        await unarchiveColumn(col.id);
-                      } catch {
-                        // ignore
-                      }
-                    }}
-                    aria-label={`Unarchive column ${col.title}`}
-                    title="Restore column"
-                    style={{ padding: '6px 10px' }}
-                  >
-                    Restore
-                  </button>
+                  {canEdit && (
+                    <button
+                      type="button"
+                      className="summary-col-actionbtn"
+                      onClick={async () => {
+                        // UI-only unarchive (no toast here to keep summary clean)
+                        try {
+                          await unarchiveColumn(col.id);
+                        } catch {
+                          // ignore
+                        }
+                      }}
+                      aria-label={`Unarchive column ${col.title}`}
+                      title="Restore column"
+                      style={{ padding: '6px 10px' }}
+                    >
+                      Restore
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
