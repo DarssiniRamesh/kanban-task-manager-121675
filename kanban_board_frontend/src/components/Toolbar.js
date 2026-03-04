@@ -176,9 +176,10 @@ function Toolbar({ onToggleFullscreen, isFullscreen, crOnly, onToggleCrOnly, can
     try {
       const text = await readFileAsText(file);
 
-      // Lightweight preview: count rows + ensure headers include id/column_id.
+      // Lightweight preview: count rows + ensure header includes id.
+      // Note: column_id may be blank on some rows (Excel edits). The import flow will resolve/default it safely.
       const firstLine = String(text).split(/\r?\n/)[0] || '';
-      const header = firstLine.split(',').map(h => String(h || '').trim().replace(/^"|"$/g, ''));
+      const header = firstLine.split(',').map(h => String(h || '').trim().replace(/^\"|\"$/g, ''));
       const hasId = header.includes('id');
       const hasColumnId = header.includes('column_id');
 
@@ -438,8 +439,9 @@ function Toolbar({ onToggleFullscreen, isFullscreen, crOnly, onToggleCrOnly, can
 
                   <div style={{ color: '#223', lineHeight: 1.5, marginBottom: 12 }}>
                     This will <strong>update existing cards</strong> and <strong>insert new cards</strong> using the CSV
-                    <code style={{ marginLeft: 6 }}>id</code> as the key. Column mapping is preserved via
-                    <code style={{ marginLeft: 6 }}>column_id</code>.
+                    <code style={{ marginLeft: 6 }}>id</code> as the key. If a row has a blank
+                    <code style={{ marginLeft: 6 }}>column_id</code>, the importer will resolve it from other fields (e.g. status)
+                    or default it to <strong>Backlog</strong>.
                   </div>
 
                   <div style={{ fontSize: '0.98em', marginBottom: 12 }}>
@@ -452,7 +454,7 @@ function Toolbar({ onToggleFullscreen, isFullscreen, crOnly, onToggleCrOnly, can
                       </span>
                       {' · '}
                       <span style={{ color: csvSyncState.preview?.hasColumnId ? '#0a7' : '#c21', fontWeight: 800 }}>
-                        column_id {csvSyncState.preview?.hasColumnId ? '✓' : '✗'}
+                        column_id {csvSyncState.preview?.hasColumnId ? '✓' : '✗'} (recommended)
                       </span>
                     </div>
                   </div>
@@ -461,9 +463,9 @@ function Toolbar({ onToggleFullscreen, isFullscreen, crOnly, onToggleCrOnly, can
                     <button
                       className="btn"
                       type="button"
-                      disabled={csvSyncState.isWorking || !csvSyncState.preview?.hasId || !csvSyncState.preview?.hasColumnId}
+                      disabled={csvSyncState.isWorking || !csvSyncState.preview?.hasId}
                       onClick={handleConfirmCsvSync}
-                      title={!csvSyncState.preview?.hasId || !csvSyncState.preview?.hasColumnId ? 'CSV must include id and column_id columns' : 'Sync cards now'}
+                      title={!csvSyncState.preview?.hasId ? 'CSV must include an id column' : 'Sync cards now'}
                     >
                       {csvSyncState.isWorking ? 'Syncing…' : 'Sync Now'}
                     </button>
@@ -477,9 +479,16 @@ function Toolbar({ onToggleFullscreen, isFullscreen, crOnly, onToggleCrOnly, can
                     </button>
                   </div>
 
-                  {(!csvSyncState.preview?.hasId || !csvSyncState.preview?.hasColumnId) && (
+                  {!csvSyncState.preview?.hasId && (
                     <div style={{ marginTop: 10, color: '#8a1d1d', fontWeight: 700 }}>
-                      Missing required columns. Use “Export Cards CSV” first to get a compatible template.
+                      Missing required column: <code>id</code>. Use “Export Cards CSV” first to get a compatible template.
+                    </div>
+                  )}
+
+                  {csvSyncState.preview?.hasId && !csvSyncState.preview?.hasColumnId && (
+                    <div style={{ marginTop: 10, color: '#6b4f00', fontWeight: 700 }}>
+                      Note: <code>column_id</code> column is not present. Rows will be defaulted to “Backlog” (or first column).
+                      For best fidelity, export from this app first.
                     </div>
                   )}
                 </div>

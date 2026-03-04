@@ -11,6 +11,14 @@ import { getSupabaseClient } from '../kanbanSupabase';
  * - Import preserves IDs and column mapping unless the CSV explicitly changes them.
  * - Unknown columns in CSV are ignored (forward-compatibility).
  *
+ * Compatibility note (important):
+ * - Some spreadsheet editors (Excel, Google Sheets) may blank out cells in a column like `column_id`
+ *   when users re-order/remove columns or do partial edits.
+ * - To keep the flow durable, import treats per-row `column_id` as *optional* and will resolve it from:
+ *    1) `column_name` or `column` (if present), else
+ *    2) status-like hints (e.g., "To Do", "Doing", "Done"), else
+ *    3) safe default: "Backlog" column (or the first column by position).
+ *
  * Failure modes (top):
  * 1) Invalid CSV (missing required fields like `feature` or invalid UUID for `id`): surfaced as user-facing error.
  * 2) Supabase API error (RLS, schema mismatch, invalid foreign key `column_id`): surfaced with context.
@@ -30,6 +38,9 @@ const CSV_FIELDS_IN_ORDER = [
   'priority',
   'status',
   'due_date',
+  // Optional compatibility fields that may appear in exports from other tooling.
+  // We do not export them, but we will consume them on import if present.
+  // 'column_name', 'column'
 ];
 
 /**
@@ -39,6 +50,125 @@ function log(flow, level, message, ctx = {}) {
   // eslint-disable-next-line no-console
   const fn = level === 'error' ? console.error : level === 'warn' ? console.warn : console.log;
   fn(`[${flow}] ${message}`, ctx);
+}
+
+/**
+ * Normalize a human-entered label for matching (columns, statuses).
+ * Contract:
+ * - Input: any (string-ish)
+ * - Output: lowercase, trimmed, whitespace-collapsed string ('' if empty)
+ */
+function normalizeLabel(value) {
+  return String(value == null ? '' : value)
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ');
+}
+
+/**
+ * Flow name: ColumnIdResolutionFlow (core helper)
+ *
+ * Resolve a column_id for an imported CSV row.
+ *
+ * Contract:
+ * - Inputs:
+ *   - row: object of raw CSV fields (string values)
+ *   - columns: Array<{ id: string|number, title?: string, position?: number }>
+ * - Output:
+ *   - { columnId: string|null, resolution: { method: string, detail?: string } }
+ * - Errors:
+ *   - never throws; returns best-effort result
+ *
+ * Invariants:
+ * - If returns a non-null columnId, it is an existing column's id (stringified).
+ * - If cannot resolve, returns null and caller should apply a safe default.
+ */
+function resolveColumnIdForRow({ row, columns }) {
+  const cols = Array.isArray(columns) ? columns : [];
+  const byTitle = new Map(
+    cols
+      .map((c) => [normalizeLabel(c?.title), c])
+      .filter(([k, c]) => k && c && c.id != null)
+  );
+
+  const pick = (k) => (row?.[k] == null ? '' : String(row[k]).trim());
+
+  // 1) Direct column_id if present
+  const direct = pick('column_id');
+  if (direct) {
+    return { columnId: direct, resolution: { method: 'column_id' } };
+  }
+
+  // 2) Some exports may include a friendly column name field
+  const explicitName = pick('column_name') || pick('column');
+  const explicitNameKey = normalizeLabel(explicitName);
+  if (explicitNameKey && byTitle.has(explicitNameKey)) {
+    return {
+      columnId: String(byTitle.get(explicitNameKey).id),
+      resolution: { method: 'column_name', detail: explicitName },
+    };
+  }
+
+  // 3) Use status-like hints -> map to canonical column titles if present
+  // This is intentionally conservative; if it doesn't match, we fall back safely.
+  const status = normalizeLabel(pick('status'));
+
+  // Common patterns seen in task exports.
+  const statusToCanonicalTitle = new Map([
+    ['to do', 'backlog'],
+    ['todo', 'backlog'],
+    ['backlog', 'backlog'],
+    ['planned', 'backlog'],
+
+    ['in progress', 'in progress'],
+    ['doing', 'in progress'],
+    ['wip', 'in progress'],
+
+    ['done', 'done'],
+    ['completed', 'done'],
+    ['complete', 'done'],
+    ['shipped', 'done'],
+  ]);
+
+  const canonical = statusToCanonicalTitle.get(status);
+  if (canonical) {
+    // Try exact match first; then allow matching any column that contains the canonical token.
+    const exact = byTitle.get(canonical);
+    if (exact) {
+      return {
+        columnId: String(exact.id),
+        resolution: { method: 'status->column', detail: `${status} -> ${canonical}` },
+      };
+    }
+
+    const contains = cols.find((c) => normalizeLabel(c?.title).includes(canonical));
+    if (contains && contains.id != null) {
+      return {
+        columnId: String(contains.id),
+        resolution: { method: 'status->column.contains', detail: `${status} -> *${canonical}*` },
+      };
+    }
+  }
+
+  return { columnId: null, resolution: { method: 'unresolved' } };
+}
+
+/**
+ * Find a safe default column id.
+ * Contract:
+ * - Input: columns array
+ * - Output: string|null (prefers "Backlog" title, else first by position, else first element)
+ */
+function getSafeDefaultColumnId(columns) {
+  const cols = Array.isArray(columns) ? columns : [];
+  if (cols.length === 0) return null;
+
+  const backlog = cols.find((c) => normalizeLabel(c?.title) === 'backlog');
+  if (backlog?.id != null) return String(backlog.id);
+
+  const sorted = [...cols].sort((a, b) => (Number(a?.position) || 0) - (Number(b?.position) || 0));
+  const first = sorted[0] || cols[0];
+  return first?.id == null ? null : String(first.id);
 }
 
 /**
@@ -352,7 +482,7 @@ export function exportCardsToCsv(cards) {
  *
  * Contract:
  * - Inputs:
- *   - csvText: string (must include `id` and `column_id` columns in header)
+ *   - csvText: string (must include `id` column in header; `column_id` is recommended but may be blank per-row)
  * - Output:
  *   - result: {
  *        totalRows: number,
@@ -362,6 +492,7 @@ export function exportCardsToCsv(cards) {
  * - Errors:
  *   - throws Error with user-friendly message for validation or Supabase failures.
  * - Side effects:
+ *   - reads Supabase `kanban_columns` to resolve missing column IDs
  *   - writes to Supabase `kanban_cards` via bulk upsert (onConflict: 'id')
  */
 export async function syncCardsFromCsvText(csvText) {
@@ -376,27 +507,59 @@ export async function syncCardsFromCsvText(csvText) {
       'CSV is missing required column "id". Export a CSV from this app to ensure round-trip compatibility.'
     );
   }
-  if (!headerSet.has('column_id')) {
+
+  const supabase = getSupabaseClient();
+
+  // Fetch columns once for deterministic per-row resolution.
+  log(flow, 'info', 'columns.fetch.begin');
+  const { data: columns, error: colErr } = await supabase
+    .from('kanban_columns')
+    .select('id,title,position')
+    .order('position', { ascending: true });
+
+  if (colErr) {
+    log(flow, 'error', 'columns.fetch.failed', {
+      message: colErr.message,
+      details: colErr.details,
+      hint: colErr.hint,
+    });
+    throw new Error(`Supabase read failed (kanban_columns): ${colErr.message || 'unknown error'}`);
+  }
+
+  const defaultColumnId = getSafeDefaultColumnId(columns || []);
+  if (!defaultColumnId) {
     throw new Error(
-      'CSV is missing required column "column_id". Export a CSV from this app to preserve column mapping.'
+      'CSV import cannot proceed because no columns exist (or could be resolved). Please create a column (e.g., "Backlog") and retry.'
     );
   }
+  log(flow, 'info', 'columns.fetch.success', { columnCount: (columns || []).length, defaultColumnId });
 
   const warnings = [];
   const payloads = [];
+
   rows.forEach((raw, idx) => {
     const rowNum = idx + 2; // header is line 1
     const id = raw?.id == null ? '' : String(raw.id).trim();
     if (!id) {
       throw new Error(`Row ${rowNum}: missing required "id".`);
     }
-    const colId = raw?.column_id == null ? '' : String(raw.column_id).trim();
-    if (!colId) {
-      throw new Error(`Row ${rowNum}: missing required "column_id".`);
+
+    // If column_id is blank/missing, resolve it using other fields or default.
+    const { columnId: resolved, resolution } = resolveColumnIdForRow({ row: raw, columns });
+    const finalColumnId = resolved || defaultColumnId;
+
+    if (!resolved) {
+      warnings.push(
+        `Row ${rowNum}: missing/blank "column_id"; defaulted to column_id=${finalColumnId} (${resolution.method}).`
+      );
+    } else if (resolution.method !== 'column_id') {
+      warnings.push(`Row ${rowNum}: resolved "column_id" via ${resolution.method} (${resolution.detail || ''}).`);
     }
 
     try {
-      const { payload, warnings: rowWarns } = normalizeCardRow(raw);
+      // Ensure normalization sees a concrete column_id.
+      const mergedRaw = { ...raw, column_id: finalColumnId };
+      const { payload, warnings: rowWarns } = normalizeCardRow(mergedRaw);
       payloads.push(payload);
       rowWarns.forEach((w) => warnings.push(`Row ${rowNum}: ${w}`));
     } catch (e) {
@@ -407,8 +570,6 @@ export async function syncCardsFromCsvText(csvText) {
   if (payloads.length === 0) {
     throw new Error('No data rows found in CSV.');
   }
-
-  const supabase = getSupabaseClient();
 
   log(flow, 'info', 'upsert.begin', { rows: payloads.length });
   const { data, error } = await supabase
@@ -421,7 +582,11 @@ export async function syncCardsFromCsvText(csvText) {
     .select('id');
 
   if (error) {
-    log(flow, 'error', 'upsert.failed', { message: error.message, details: error.details, hint: error.hint });
+    log(flow, 'error', 'upsert.failed', {
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+    });
     throw new Error(`Supabase upsert failed: ${error.message || 'unknown error'}`);
   }
 
