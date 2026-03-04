@@ -45,7 +45,7 @@ export default function Login() {
     <div className="container" style={{ paddingTop: 96, paddingBottom: 40 }}>
       <h1 className="page-title">Sign in</h1>
       <p className="page-subtitle" style={{ maxWidth: 820 }}>
-        This is a <strong>frontend-only demo login</strong> with hardcoded users. Use one of the credentials below.
+        This is a <strong>frontend-only demo login</strong> with hardcoded users. Choose a role and sign in.
         Reader is view-only; Editor can create/edit/delete and drag/move items.
       </p>
 
@@ -58,17 +58,19 @@ export default function Login() {
           border: '1px solid rgba(0,0,0,0.08)',
           maxWidth: 820,
         }}
-        aria-label="Demo credentials"
+        aria-label="Demo users"
       >
-        <div style={{ fontWeight: 800, marginBottom: 10 }}>Demo credentials</div>
+        <div style={{ fontWeight: 800, marginBottom: 10 }}>Demo users</div>
         <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 1.6 }}>
           {dummyCredentials.map((c) => (
             <li key={c.role}>
-              <strong style={{ textTransform: 'capitalize' }}>{c.role}</strong>: username <code>{c.username}</code>, password{' '}
-              <code>{c.password}</code>
+              <strong style={{ textTransform: 'capitalize' }}>{c.role}</strong>: username <code>{c.username}</code>
             </li>
           ))}
         </ul>
+        <div style={{ marginTop: 10, fontSize: 13, opacity: 0.85 }}>
+          For security reasons, passwords are not displayed in the UI.
+        </div>
       </div>
 
       <form onSubmit={handleSubmit} style={{ marginTop: 18, maxWidth: 520 }}>
@@ -91,7 +93,7 @@ export default function Login() {
               onChange={(e) => setPassword(e.target.value)}
               autoComplete="current-password"
               type="password"
-              placeholder="reader123 or editor123"
+              placeholder="Enter password"
               style={{ padding: 10, borderRadius: 10, border: '1px solid rgba(0,0,0,0.18)' }}
             />
           </label>

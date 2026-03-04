@@ -117,10 +117,8 @@ function NavUserControls() {
         </>
       ) : (
         <span style={{ fontSize: 13, opacity: 0.85 }}>
-          Demo login required. Reader: <code>{dummyCredentials?.find((d) => d.role === 'reader')?.username}</code> /{' '}
-          <code>{dummyCredentials?.find((d) => d.role === 'reader')?.password}</code>, Editor:{' '}
-          <code>{dummyCredentials?.find((d) => d.role === 'editor')?.username}</code> /{' '}
-          <code>{dummyCredentials?.find((d) => d.role === 'editor')?.password}</code>
+          Demo login required. Usernames: Reader <code>{dummyCredentials?.find((d) => d.role === 'reader')?.username}</code>, Editor{' '}
+          <code>{dummyCredentials?.find((d) => d.role === 'editor')?.username}</code>.
         </span>
       )}
     </div>

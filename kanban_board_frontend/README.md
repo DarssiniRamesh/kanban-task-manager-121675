@@ -32,10 +32,10 @@ This app includes a **frontend-only dummy login gate** with two hardcoded roles:
 
 Credentials:
 
-- Reader: `reader` / `reader123`
-- Editor: `editor` / `editor123`
+- Reader username: `reader`
+- Editor username: `editor`
 
-> Note: This is not secure authentication. It only gates UI actions in the browser.
+> Note: This is not secure authentication. It only gates UI actions in the browser. Passwords are intentionally not displayed in the UI/docs.
 
 ## Features
 

@@ -82,7 +82,8 @@ export function AuthProvider({ children }) {
       canEdit,
       login,
       logout,
-      dummyCredentials: DUMMY_USERS.map(({ username, password, role }) => ({ username, password, role })),
+      // Do not expose passwords to the UI.
+      dummyCredentials: DUMMY_USERS.map(({ username, role }) => ({ username, role })),
     }),
     [user, isAuthenticated, role, canEdit, login, logout]
   );
