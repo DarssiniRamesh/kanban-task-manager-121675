@@ -188,7 +188,7 @@ function Toolbar({ onToggleFullscreen, isFullscreen, crOnly, onToggleCrOnly, can
       // Lightweight preview: count rows + ensure header includes id.
       // Note: column_id may be blank on some rows (Excel edits). The import flow will resolve/default it safely.
       const firstLine = String(text).split(/\r?\n/)[0] || '';
-      const header = firstLine.split(',').map(h => String(h || '').trim().replace(/^\"|\"$/g, ''));
+      const header = firstLine.split(',').map(h => String(h || '').trim().replace(/^"|"$/g, ''));
       const hasId = header.includes('id');
       const hasColumnId = header.includes('column_id');
 
